@@ -111,3 +111,47 @@ environment**:
 Resolution order for a reference is inherited environment first, then the stored
 `refs` map (`dsh-credentials-local`), so an exported variable still wins when one
 exists — storing it does not take that away.
+
+## 6. Proven inside the interactive web session
+
+After the web interface restarted, the tool is part of the session's tool set and
+runs against the private instance with no environment variable exported.
+
+The session transcript records it three ways:
+
+```
+transcript lines            : 2734
+sourcegraph_search in tools[]: True
+sourcegraph_search calls    : {'sourcegraph_search': 3}
+```
+
+Three calls, covering each match class the tool handles:
+
+| Query | Result |
+|---|---|
+| `repo:…/onscript_asr_service func failClosedDiarizationError count:3` | one content match at `cmd/asr-service/real_runner.go:2131` |
+| the same repo with `patternType: structural`, `contextLines: 2` | structural matches in `internal/obs/setup.go` with two context lines |
+| `bercastle type:repo count:5` | five repository matches, description-bearing rows rendered as such |
+
+Every call reported the instance as `https://bercastle.sourcegraph.app`, which is
+the profile patch's endpoint — so the configuration in force is the one the patch
+layer declares, and the credential resolved from `~/.dsh/.credentials.yaml`.
+
+Reproduce the transcript check with:
+
+```sh
+python3 - "$DSH_HOME/sessions/"*/session-*/session.v3.jsonl.zstd <<'PY'
+import json, sys, zstandard
+raw = zstandard.ZstdDecompressor().stream_reader(open(sys.argv[1],'rb')).read().decode()
+offered = calls = 0
+for line in raw.splitlines():
+    try: e = json.loads(line)
+    except: continue
+    if e.get('type') == 'request/header':
+        tools = (e.get('data',{}).get('header',{}) or {}).get('tools') or []
+        offered += any(isinstance(x,dict) and x.get('name')=='sourcegraph_search' for x in tools)
+    if e.get('type') == 'tool/call' and e.get('data',{}).get('name') == 'sourcegraph_search':
+        calls += 1
+print('offered in tools[]:', bool(offered), '| calls:', calls)
+PY
+```
