@@ -9,36 +9,96 @@ repositories that are not cloned locally.
 ## Install
 
 ```sh
-dsh plugin --profile web add dsh-tool-sourcegraph
-```
-
-Or straight from this repository — no build step, `dist/` is committed:
-
-```sh
 dsh plugin --profile web add github:markab21/dsh-tool-sourcegraph
 ```
+
+This is the only install path today — the package is **not published to npm**, so
+`dsh plugin add dsh-tool-sourcegraph` fails with `ERR_PNPM_FETCH_404`. The git
+install needs no build step and no pnpm approval prompt: `dist/` is committed and
+the package declares no `prepare` script.
 
 Then restart the profile. The bundle declares `dsh.bundle.patch`, so the package
 joins the profile's layer stack automatically; nothing else to wire up.
 
 ### Configure the instance
 
-Override the contributed row's config in the profile's `cordis.patch.yml`:
+**This step is required for a private instance.** The contributed row carries
+`endpoint: https://sourcegraph.com` and `tokenRef: SOURCEGRAPH_TOKEN` by default,
+so without a patch every query goes to the *public* instance.
+
+Append to your profile's patch file — on a default install,
+`~/.dsh/profiles/web/cordis.patch.yml`. A fresh profile ships that file as a bare
+`[]` with a comment header, so you are appending an entry, not replacing one:
 
 ```yaml
+# ~/.dsh/profiles/web/cordis.patch.yml
 - id: tool-sourcegraph
   config:
     endpoint: https://sourcegraph.example.com   # default: https://sourcegraph.com
-    tokenRef: SOURCEGRAPH_TOKEN                 # env-var NAME, not the token
-    maxMatches: 30
+    tokenRef: SOURCEGRAPH_TOKEN                 # a credential NAME, not the token
+    maxMatches: 30                             # count: is capped by this
     maxCharsPerMatch: 600
     search: true
 ```
 
-`tokenRef` names an environment variable. The value is resolved **per request**
-through the harness credential seam, so a rotated token reaches the next call
-without a restart, and the secret never appears in configuration. An unresolved
-reference means anonymous access, which is what a public instance expects.
+**Check that the patch took effect.** An unknown `id` is not an error: dsh prints
+`patch: entry "tool-sourcegraphx" not found` to stderr and continues with exit 0,
+leaving the default endpoint in place. Confirm the row before using the tool:
+
+```sh
+dsh --profile web --dump-config | grep -A5 tool-sourcegraph
+# expect:  # == dsh-tool-sourcegraph, patched by …/cordis.patch.yml
+```
+
+An unresolvable `tokenRef` does *not* fall back to anonymous access on a private
+instance — it answers `401` with the hint
+`the instance rejected the credential; check that the configured token reference
+resolves`.
+
+### Where the token lives
+
+`tokenRef` names a credential, resolved per request, so a rotated token reaches
+the next call without a restart. Resolution order, highest precedence first:
+
+| Source | How |
+|---|---|
+| inherited environment | export `SOURCEGRAPH_TOKEN=…` before launching dsh |
+| the credential store | `~/.dsh/.credentials.yaml` (mode 600): `version: 1`, then `refs:` mapping the name to the value |
+| `.env` in the invocation directory | a lower-precedence fallback |
+
+The store is the file the harness owns and is the option that needs nothing
+exported at launch:
+
+```yaml
+# ~/.dsh/.credentials.yaml
+version: 1
+refs:
+  SOURCEGRAPH_TOKEN: <token>
+```
+
+`tokenRef` can be omitted entirely when you use the default name.
+
+**Alternative — enter the token in settings instead.** Set `apiToken` rather than
+`tokenRef`; it wins when both are present and needs no credential store:
+
+```yaml
+- id: tool-sourcegraph
+  config:
+    endpoint: https://sourcegraph.example.com
+    apiToken: <token>   # stored in your settings document, not the credential store
+```
+
+Unlike `tokenRef`, this deliberately puts the secret in configuration, which is
+why `tokenRef` is the default. Both are fields of the plugin's settings
+namespace, so either can also be written through the settings API —
+`ctx.remote.settings.update('tool-sourcegraph', patch, revision)`.
+
+> There is no form for these fields in the Settings screen yet. The plugin
+> registers its settings namespace on the Host, but the **Plugin configuration**
+> tab renders only cards a plugin ships a browser half for, and this one does not
+> — so it appears under **Plugin list** as Running/Enabled with nothing to edit.
+> See [docs/settings-ui.md](docs/settings-ui.md).
+
 
 ## The tool
 

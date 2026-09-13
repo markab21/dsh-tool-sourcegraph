@@ -127,10 +127,12 @@ Two things that will bite on a fresh profile:
 - **Credentials.** The scratch home has none, so the agent cannot call a model
   and the tool never runs. Either symlink the credential store from the real
   home, or provide the key through the environment for that command.
-- **Git-hosted installs.** Installing from a git URL runs the package's
-  `prepare` script, which pnpm blocks until its exact key is added under
-  `allowBuilds` in the profile's `pnpm-workspace.yaml`. A local path or a
-  registry install has no such gate.
+- **Git-hosted installs.** A git-hosted package that declares a `prepare` script
+  runs it on install, and pnpm blocks that until its exact key is added under
+  `allowBuilds` in the profile's `pnpm-workspace.yaml`. **This package is not one
+  of those**: it declares no `prepare`, because `dist/` is committed, and a
+  `github:` install completes with no build step and no approval prompt. The gate
+  still applies to any *other* git-hosted plugin you try.
 
 ## Rebuilding while it runs
 
