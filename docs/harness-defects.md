@@ -107,7 +107,7 @@ const ChatNodeList = (0, react.memo)(function ChatNodeList({ order, ...seatProps
 `order` is every visible node in the loaded window (`:5618`), and each seat mounts
 a real subtree (`:1613`). There is no virtualization in that package: a search for
 `virtual` in `dsh-client-ui-chat/lib/client.js` returns nothing. The window itself
-is not capped — `dsh-api-session-controller` pages 50 messages at a time and
+is not capped. The session controller pages 50 messages at a time, and
 `loadThrough` loops back toward sequence 0.
 
 The sibling surface does it correctly, which shows the pattern exists in this
@@ -128,7 +128,7 @@ if (structural) {
 
 A newly appearing node is always structural (`:5606`), so this runs for every tool
 call and every assistant step. `orderedVisibleChatNodes` (`:5116`) filters, builds
-presentations, and sorts — with a comparator that allocates objects and calls
+presentations, and sorts. The comparator allocates objects and calls
 `localeCompare`. `locations.rebuild` (`:4931`) is another full pass.
 
 The cost is O(N log N) per append, so O(N²) across a long session. Text streaming
@@ -176,7 +176,7 @@ const rpc = fixtureRpc ?? createWebConnectionRpc(transport?.fetch, transport?.op
 
 A client plugin can install `globalThis.__DSH_TRANSPORT__.fetch` and wrap the real
 `fetch` with a deadline. That turns D1 and D2 from a permanent hang into a failed
-request, which the existing failure paths already handle — the composer reports a
+request, which the existing failure paths already handle. The composer reports a
 warmup failure instead of ignoring Enter, and a stalled stream open rejects rather
 than parking forever.
 
