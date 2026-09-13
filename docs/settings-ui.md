@@ -136,3 +136,19 @@ not otherwise use.
 
 None of these options blocks the model tool. The tool works with Host-only
 settings, and `verification.md` records that state.
+
+## The services the plugin consumes
+
+The plugin declares four services in its `inject` list, and it waits for each one
+before it loads.
+
+| Service | The plugin uses it for |
+|---|---|
+| `tools` | To register `sourcegraph_search` |
+| `credentials` | To resolve `tokenRef` for each request |
+| `settings` | To own the namespace described above |
+| `systemPrompt` | To register the `tool:sourcegraph_search` section that tells the agent to try this tool before it scans the filesystem |
+
+The last one is not a settings concern, and it appears here because the plugin
+fails to load when a service in the list is absent. A deployment that composes a
+settings provider but not a system prompt leaves the plugin waiting.

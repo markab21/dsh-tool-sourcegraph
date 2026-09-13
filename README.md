@@ -121,6 +121,32 @@ entries from the server, the `alert` messages, and the filters that the server
 offered. The client reads the stream as it arrives and stops when it has the
 number of matches that you asked for, so a wide query stays bounded.
 
+### The order of tools
+
+The agent tries `sourcegraph_search` before it scans the local filesystem. The
+plugin states this in two places, because a tool description competes with `glob`
+and `grep` for the same task.
+
+The description of the tool says to try it first when the local file is not known
+already, and to use `glob` when the path is known and `grep` for a search that
+must stay in the working directory.
+
+The plugin also registers a system-prompt section named
+`tool:sourcegraph_search`. The section sorts before the sections for `glob` (1400)
+and `grep` (1500), so the model reads the order before it reads those tools. The
+section returns empty text when the tool is not visible in the current scope, so a
+deployment that sets `search: false` ships no guidance about a tool that it does
+not have.
+
+The instruction matters because the two tools answer different questions.
+`sourcegraph_search` reaches repositories that are not on this machine, which
+includes a dependency, a sibling service, and every repository in the index. `glob`
+and `grep` see only the working directory. A search for a symbol that exists in
+another repository returns nothing from `grep`, and the empty result looks like
+proof that the symbol does not exist.
+
+`tests/guidance.test.ts` fails if either statement loses the instruction.
+
 ## Development
 
 ```sh
