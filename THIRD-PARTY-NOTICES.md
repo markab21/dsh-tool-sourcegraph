@@ -25,10 +25,23 @@ are defensible. The maintainers of this package proceed under the manifest's
 Apache-2.0 declaration and record the ambiguity here rather than resolving it
 silently. This should be revisited before any public release.
 
-The upstream files are copied verbatim at present. Apache-2.0 section 4(b)
-requires that modified files carry prominent notices stating that they were
-changed; once the imports are rewritten, each edited file gains such a notice and
-the modifications are listed in `src/vendor/sourcegraph-query/PROVENANCE.md`.
+The upstream files are **modified**, not verbatim. The changes are: import
+specifier rewriting; three imports that pointed outside the tree replaced with
+local shims; one narrowing fix in `scanner.ts`; and a change-notice header on
+each edited file. Every modification is listed in
+`vendor/sourcegraph-query/PROVENANCE.md`, which ships with this package for that
+reason.
+
+Each edited file carries a prominent notice stating that it was changed — in the
+source **and in the emitted JavaScript**, because `tsc` drops a file-leading
+comment when the statement after it is elided, and a notice that does not survive
+the build is not a notice. Apache-2.0 section 4(b) requires the notice and
+section 4(d) requires this file's contents to be retained alongside the code.
+
+The vendored tree is not currently imported by the plugin's runtime code; it is
+carried for query validation and future tools. That does not change the
+obligations above, and it is stated here so a redistributor is not misled about
+why Apache-2.0 code is present.
 
 Full upstream license texts follow.
 

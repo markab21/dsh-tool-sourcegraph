@@ -41,12 +41,12 @@ modifications themselves are listed below.
 | `query/predicates.ts` | `query/predicates.ts` | yes |
 | `query/query.ts` | `query/query.ts` | yes |
 | `query/validate.ts` | `query/validate.ts` | yes |
-| `query/languageFilter.ts` | `query/languageFilter.ts` | yes (moved from `query/completions/`) |
-| `query/selectFilter.ts` | `query/selectFilter.ts` | yes (moved from `query/completions/`) |
+| `query/languageFilter.ts` | `query/languageFilter.ts` | yes |
+| `query/selectFilter.ts` | `query/selectFilter.ts` | yes |
 
-2,128 lines total. The two completion modules were flattened from
-`query/completions/` into `query/`, so all ten files sit at one level; see
-modification 3 below for why that is the smaller edit.
+2,432 lines total, including the change-notice header on the nine modified
+files. All ten sit at one level (`query/`), which is where upstream keeps them
+too — there is no `query/completions/` directory upstream.
 
 Four additional files in `query/` are ours, not upstream: `pattern-type.ts`,
 `stream.ts`, `languages.ts`, and `window-context.d.ts`. They are described under
@@ -119,12 +119,15 @@ correctly at runtime.
 | `query/filters.ts` | `SearchMatch` from `../stream` | `./stream.js` (local shim) |
 | `query/languageFilter.ts` | `ALL_LANGUAGES`, `POPULAR_LANGUAGES` from `@sourcegraph/common` | `./languages.js` (local shim) |
 
-### 3. The two completion modules were flattened
+### 3. Not a modification: the completion modules were never relocated
 
-`languageFilter.ts` and `selectFilter.ts` moved from `query/completions/` up into
-`query/`. They import `./token`, which the move makes correct as written; keeping
-the subdirectory would have required rewriting those specifiers to `../token`
-instead. One less edit to vendored code.
+An earlier revision of this document claimed these two files were flattened
+out of a `query/completions/` subdirectory into `query/`. That was wrong:
+upstream keeps `languageFilter.ts` and `selectFilter.ts` at
+`client/shared/src/search/query/`, the same level as the rest, and no
+`completions/` directory exists there. Nothing was moved, and no edit was
+saved. Recorded here because a provenance document that describes an edit
+which did not happen is worse than one that omits it.
 
 ### 4. One narrowing fix in `scanner.ts`
 

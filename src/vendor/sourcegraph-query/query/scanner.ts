@@ -429,11 +429,12 @@ const filter: Scanner<Filter> = (input, start) => {
     if (value && value.type === 'error') {
         return value
     }
-    // Vendored modification: bind the narrowed term before building the result.
-    // TypeScript does not carry the union narrowing above through the object
-    // literal below (`value` is reassigned inside the preceding else-branch),
-    // which this compiler flags and upstream's does not.
-    const term = value?.type === 'error' ? undefined : value?.term
+    // Vendored modification: capture the term where the union above is still
+    // narrowed. Upstream reaches `value.term` directly inside the object literal
+    // below, which only compiles with strictNullChecks off — the value is
+    // reassigned in the preceding else-branch, so this compiler will not carry
+    // the narrowing into the literal. Same behaviour, no branching change.
+    const term = value?.type === 'success' ? value.term : undefined
     return {
         type: 'success',
         term: {

@@ -15,6 +15,7 @@
   },
   "files": [
     "dist",
+    "src/vendor/sourcegraph-query/PROVENANCE.md",
     "THIRD-PARTY-NOTICES.md",
     "cordis.patch.yml",
     "README.md",

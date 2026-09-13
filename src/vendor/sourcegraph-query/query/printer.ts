@@ -15,6 +15,11 @@ import type { Token } from './token.js'
  * readability. It should be used in contexts where modified query tokens must be
  * converted back to human readable form (e.g., for query suggestions).
  */
+/*
+ * VENDORED — modified from the upstream file of the same name.
+ * Upstream: sourcegraph/sourcegraph-public-snapshot @ c864f15
+ * Apache-2.0 section 4(b) change notice; see ../PROVENANCE.md.
+ */
 export const stringHuman = (tokens: Token[]): string => {
     const result: string[] = []
     for (const token of tokens) {
