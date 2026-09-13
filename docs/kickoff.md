@@ -134,9 +134,10 @@ already-installed DeepSeek search provider (`WEB_DUPLICATE_PROVIDER`).
 
 ### GraphQL
 
-`/.api/graphql` remains available for what streaming search does not cover
-(repository metadata, commit ranges, diff/commit search, `src-cli`-style
-operations). Keep it in reserve for a second phase.
+`/.api/graphql` covers what streaming search does not: single-repository
+metadata, the resolved default branch, and file content at a revision. Verified
+working anonymously against `sourcegraph.com` and used by `sourcegraph_fetch` —
+see section 9. Diff and commit search remain on the streaming endpoint.
 
 ## 6. Tool cards
 
@@ -158,17 +159,142 @@ dsh plugin --profile dev add .              # links this checkout as a bundle
 dsh --profile dev --port 3081 --no-open     # a second GUI, your own untouched
 ```
 
-## 8. Open questions
+## 8. Decisions (confirmed 2026-09-13)
+
+| # | Decision |
+|---|---|
+| 1 | **Both** `sourcegraph.com` and self-hosted instances must work. Instance URL is plugin config; the access token is a credential reference resolved per operation, and its absence means anonymous mode rather than a failure. |
+| 2 | **Three tools in v1:** `sourcegraph_search`, `sourcegraph_fetch`, `sourcegraph_repo`. |
+| 3 | **Local checkout / private install** for now. The manifest stays publish-ready, `private: true` prevents an accidental release, and nothing public is locked in. |
+| 4 | No custom Client card in v1 — the generic card carries it. |
+| 5 | Single instance per profile in v1. |
+
+### What this scope implies
+
+Three tools means three canonical output schemas, three truncation stories, and
+one shared client. The unifying decision below keeps that tractable.
+
+## 9. Verified API surface
+
+All three tools rest on endpoints verified by hand on 2026-09-13.
+
+### Streaming search — `GET /.api/search/stream?q=…&v=V3` (SSE)
+
+Anonymous against `sourcegraph.com`; `Authorization: token <token>` for a
+private instance. Confirmed working: `patternType:keyword`, `patternType:structural`
+(a real structural query returned a match), `count:`, `select:repo`
+(repository enumeration), and `type:repo` matches carrying `description`,
+`repoStars`, and `topics`. Limit conditions arrive as `progress.skipped[]` and
+`alert` events, so truncation can be reported honestly.
+
+Two operational notes:
+
+- The stream must be read **incrementally**. Buffering a whole response defeats
+  the endpoint and risks unbounded memory on a broad query.
+- `event: done` terminates; a client must also handle the connection closing
+  early with matches already received.
+
+### GraphQL — `POST /.api/graphql`
+
+Anonymous against `sourcegraph.com`; a token is required on a private instance.
+Verified:
+
+```graphql
+{ repository(name: "github.com/kubernetes/kubernetes") {
+    commit(rev: "HEAD") { oid file(path: "go.mod") { content } } } }
+```
+
+returns the resolved commit `oid` **and** the file content in one call — which is
+what `sourcegraph_fetch` needs, together with `defaultBranch { abbrevName }`,
+`url`, `description`, and `stars`.
+
+A caveat worth remembering: `repository(name:)` returns `null` for a repository
+the instance does not have (a de-indexed private repo behaved exactly like a
+typo), so the tool must report "not found or not indexed" rather than crash.
+
+### Raw file content — `/<repo>@<commit>/-/raw/<path>`
+
+Returns a **301 to `/r/<repo>@<commit>/-/raw/<path>`**. Any fallback path that
+uses this endpoint must follow the redirect. GraphQL `file.content` is the
+primary source; the raw endpoint is the fallback when the API is unavailable.
+
+### No new HTTP dependency
+
+The streaming endpoint is plain SSE over `fetch`, and GraphQL is a POST. Node's
+built-in `fetch` plus `AbortSignal` covers all of it, so the plugin adds no
+runtime dependencies — an SSE line parser and the GraphQL calls are ours to own.
+
+### Rejected: the `ctx.web` provider route
+
+`ctx.web.registerSearchProvider()` was considered in section 5 and is **not** the
+design. A code-search result does not fit `WebSearchResult`, and structural
+search, `select:`, and file fetch have no place in that shape.
+
+## 10. Proposed tool contracts
+
+Names are `sourcegraph_*` to read as siblings of the built-in `web_search` /
+`web_fetch`, avoid colliding with a generic search, and stay unambiguous if a
+GitHub or grep tool is added later.
+
+### `sourcegraph_search`
+
+| Arg | Type | Notes |
+|---|---|---|
+| `query` | string, required | Full Sourcegraph query syntax — `repo:`, `lang:`, `file:`, `type:`, boolean operators, `select:` |
+| `patternType` | enum `keyword` \| `standard` \| `regexp` \| `structural` | Structural search lives here rather than in a separate tool; it is the same endpoint and the same result shape |
+| `count` | integer | Result cap |
+| `contextLines` | integer | Lines of context around each match |
+
+Output: matches grouped by repository and path, each with line numbers and
+context, plus the resolved commit, and an explicit truncation record when the
+server reported limits. `select:repo` queries return repository rows in the same
+canonical shape.
+
+### `sourcegraph_fetch`
+
+| Arg | Type | Notes |
+|---|---|---|
+| `repo` | string, required | `github.com/owner/name` |
+| `path` | string, required | File path in the repository |
+| `rev` | string | Commit or branch; defaults to the repository's default branch |
+| `startLine` / `endLine` | integer | Optional range window |
+
+Output: the file text, its resolved commit, its path, and whether the content was
+truncated. A directory path returns a listing instead of failing.
+
+### `sourcegraph_repo`
+
+Discover repositories rather than read one. Backed by `select:repo` over the
+streaming endpoint.
+
+| Arg | Type | Notes |
+|---|---|---|
+| `query` | string, required | Repository filters — `repo:`, `repo:has.topic()`, `repo:has.file()`, `lang:`, `count:` |
+| `count` | integer | Result cap |
+
+Output: repository name, description, stars, topics, and the default branch when
+available.
+
+**Open sub-question (6):** whether `sourcegraph_repo` also carries a
+`kind: metadata \| list` switch for single-repository metadata via GraphQL, or
+stays purely a discovery tool. Leaning toward keeping it a discovery tool and
+letting `sourcegraph_fetch` handle the single-repository case.
+
+## 11. Remaining open questions
 
 | # | Question | Recommendation |
 |---|---|---|
-| 1 | Which deployment(s) must work: `sourcegraph.com` only, a self-hosted instance, or both? | Build for both; the instance URL is config, the token is a credential reference |
-| 2 | Which tools ship in v1? | `sourcegraph_search` first; add a file-read tool when a real workflow needs it |
-| 3 | Publish to npm, or install from git/checkout? | Keep the package name free and publishing-ready; decide before first release |
-| 4 | Do we want a custom Client card? | Defer to v2; the generic card is enough to validate the tool |
-| 5 | Multi-instance support in one profile? | Single instance in v1 |
+| 6 | `sourcegraph_repo` as pure discovery, or with a `kind` switch for metadata? | Pure discovery in v1 |
+| 7 | Hard caps for returned matches / characters per match / total output | Set defaults in config, exposed per deployment |
+| 8 | When HMR reloads a plugin, options are preserved — does the `hmr` row need a `reload` config for the dev loop? | Confirm during implementation |
 
-## 9. Risks
+## 12. Verified: hot-reload options
+
+The `hmr` row accepts a `reload` option (`@deepseek-ai/cordis-plugin-hmr`), so
+options registered before a hot reload can either be preserved or reset. Worth
+configuring deliberately in the dev profile once the plugin has state.
+
+## 13. Risks
 
 - **Anonymous rate limits.** `sourcegraph.com` needs no token but is not
   unlimited; an unauthenticated deployment must degrade with a clear message
@@ -184,6 +310,19 @@ dsh --profile dev --port 3081 --no-open     # a second GUI, your own untouched
 - **Version drift.** Harness packages move fast and carry `latest` dist-tags on
   stale versions (see below). Pin dev versions exactly and keep peer ranges
   narrow.
+- **Three-tool scope.** Three schemas means three truncation stories. The shared
+  client and one canonical match shape are what keep this from tripling the
+  work — a second ad-hoc shape per tool is the failure mode to avoid.
+- **Self-hosted variance.** Field availability differs across Sourcegraph
+  versions and licences (anonymous GraphQL in particular is not guaranteed off
+  `sourcegraph.com`). A failed capability must surface as a clear structured
+  error, not an empty result.
+- **Untrusted input in the query.** A model-built query is data, not an
+  instruction: put it in a URL parameter properly, never into a shell, and never
+  into a URL that is logged with a token attached.
+- **Token leakage.** The token must never reach model-facing content, logs, or
+  error text; resolve it per operation through `ctx.credentials` and keep it out
+  of every value the tool returns.
 
 ### Note: npm dist-tags on the `@deepseek-ai` packages are misleading
 
@@ -191,7 +330,7 @@ dsh --profile dev --port 3081 --no-open     # a second GUI, your own untouched
 `next` (`0.1.5-rc.2`) and the installed Harness is `0.1.5-rc.1`. Always resolve
 the `next`/`alpha` tags or pin explicitly — never `latest`.
 
-## 10. What exists in this repo today
+## 14. What exists in this repo today
 
 | Path | Purpose |
 |---|---|

@@ -12,12 +12,17 @@ disk — public code on `sourcegraph.com`, or a private/self-hosted instance.
 
 ## What it will do
 
-- Search Sourcegraph with its query syntax (`repo:`, `lang:`, `type:`, `file:`,
-  boolean operators, `select:`), not a simplified subset.
-- Return repository, path, line numbers, and surrounding lines so the agent can
-  cite and reason about remote code.
-- Reach a private instance with an access token, resolved through the Harness
-  credential seam rather than read from the environment directly.
+Three tools, all over Sourcegraph's real API:
+
+| Tool | Purpose |
+|---|---|
+| `sourcegraph_search` | Full query syntax (`repo:`, `lang:`, `file:`, `type:`, boolean operators, `select:`) plus `patternType: structural` for structural search |
+| `sourcegraph_fetch` | Read a file, or a line range, from a repository at a revision — including repositories not cloned locally |
+| `sourcegraph_repo` | Discover repositories with filters such as `repo:has.topic()` and `repo:has.file()` |
+
+Works against public `sourcegraph.com` with no token, and against a
+private/self-hosted instance with an access token resolved through the Harness
+credential seam rather than read from the environment directly.
 
 ## Install (once implemented)
 
