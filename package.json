@@ -1,6 +1,6 @@
 {
   "name": "dsh-tool-sourcegraph",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Sourcegraph code search for DeepSeek Harness: search indexed code across repositories from the agent loop.",
   "license": "MIT",
   "private": false,
@@ -29,7 +29,7 @@
   "scripts": {
     "build": "tsc -b tsconfig.json",
     "clean": "tsc -b tsconfig.json --clean",
-    "typecheck": "tsc -p tsconfig.vendor.json --noEmit && tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "test": "vitest run",
     "check": "pnpm run release && publint && npm pack --dry-run",
     "release": "pnpm run typecheck && pnpm run test && pnpm run build"

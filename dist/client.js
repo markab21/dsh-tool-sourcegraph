@@ -60,6 +60,12 @@ export async function searchSourcegraph(request) {
         url.searchParams.set('cm', 'true');
         url.searchParams.set('cl', String(request.contextLines));
     }
+    if (request.maxLineLen !== undefined && request.maxLineLen > 0) {
+        url.searchParams.set('max-line-len', String(request.maxLineLen));
+    }
+    if (request.display !== undefined && request.display > 0) {
+        url.searchParams.set('display', String(request.display));
+    }
     const headers = { Accept: 'text/event-stream' };
     if (request.token !== undefined && request.token !== '') {
         headers.Authorization = `token ${request.token}`;

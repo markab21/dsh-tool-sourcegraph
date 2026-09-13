@@ -168,9 +168,14 @@ of this project.
 
 ### 5. The compiler settings for this directory
 
-The file `tsconfig.vendor.json` relaxes two settings for this directory only:
-`noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`. The setting `strict`
-stays on.
+The build relaxes two settings for this directory: `noUncheckedIndexedAccess` and
+`exactOptionalPropertyTypes`. The setting `strict` stays on.
+
+An earlier revision kept these in a separate `tsconfig.vendor.json`. That
+separation stopped working when the plugin began importing these modules, because
+an import from project code pulls the imported files into the configuration that
+compiles the importer. The relaxed settings now live in the single
+`tsconfig.json`, which is what actually builds the package.
 
 Under the strict settings of this project, the vendored tree reports 15 errors.
 Each error is a strictness complaint about a possibly-undefined lookup, and not a

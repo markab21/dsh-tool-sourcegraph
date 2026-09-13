@@ -84,6 +84,10 @@ describe('tool guidance', () => {
       maxMatches: 10,
       maxCharsPerMatch: 300,
       search: true,
+      fetch: true,
+      repo: true,
+      validate: true,
+      requestTimeoutMs: 30_000,
     })
 
     const section = sections.find((s) => s.name === 'tool:sourcegraph_search')
@@ -106,6 +110,10 @@ describe('tool guidance', () => {
       maxMatches: 10,
       maxCharsPerMatch: 300,
       search: false,
+      fetch: true,
+      repo: true,
+      validate: true,
+      requestTimeoutMs: 30_000,
     })
 
     const section = sections.find((s) => s.name === 'tool:sourcegraph_search')

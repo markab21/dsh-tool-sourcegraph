@@ -89,6 +89,19 @@ export interface SearchRequest {
     patternType?: string;
     count?: number;
     contextLines?: number;
+    /**
+     * Cap on the length of one matched line, in characters. The API truncates the
+     * `context` field of a chunk match to this value, which keeps one very long
+     * line from dominating the result.
+     */
+    maxLineLen?: number;
+    /**
+     * Cap on the number of matches the backend returns. This is distinct from
+     * `count`, which stops the search once it has that many matches: `display`
+     * lets the search continue and aggregate statistics while withholding further
+     * matches.
+     */
+    display?: number;
     /** Bearer token, or undefined for anonymous access. */
     token?: string;
     signal?: AbortSignal;

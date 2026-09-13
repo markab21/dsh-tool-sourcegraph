@@ -2,14 +2,11 @@
   /*
    * Typechecks this project's source AND its tests.
    *
-   * It extends tsconfig.json, NOT tsconfig.vendor.json. That distinction is the
-   * point: extending the vendor config inherited the flags relaxed for
-   * third-party code and silently weakened the check for our own source — a
-   * false-negative channel sitting in `pnpm run typecheck`, where a broken test
-   * would still report clean.
-   *
-   * src/vendor is excluded here because tsconfig.vendor.json already checks it,
-   * under the flags upstream's code actually needs.
+   * It extends tsconfig.json, so the tests are held to the same settings as the
+   * source they exercise. An earlier revision extended a separate config for the
+   * vendored tree, which inherited the two flags relaxed for third-party code
+   * and silently weakened the check for our own source — a false-negative channel
+   * inside `pnpm run typecheck`, where a broken test still reported clean.
    */
   "extends": "./tsconfig.json",
   "compilerOptions": {
@@ -21,6 +18,6 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"],
-  "exclude": ["src/vendor", "upstream", "node_modules", "dist"],
+  "exclude": ["upstream", "node_modules", "dist"],
   "references": []
 }

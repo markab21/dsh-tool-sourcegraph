@@ -21,6 +21,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import { SourcegraphError } from './client.js';
+import { FetchError } from './fetch.js';
 /** Cordis plugin name used by loader diagnostics. */
 export declare const name = "tool-sourcegraph";
 /** Services this plugin consumes. */
@@ -56,23 +57,27 @@ export interface Config {
     maxCharsPerMatch: number;
     /** Whether to register the search tool. */
     search: boolean;
+    /** Whether to register the file-read tool. */
+    fetch: boolean;
+    /** Whether to register the repository-discovery tool. */
+    repo: boolean;
+    /**
+     * Whether to check a query locally before sending it. A rejected query then
+     * costs nothing, and the model receives the parser's own words.
+     */
+    validate: boolean;
+    /**
+     * Deadline in milliseconds for each harness browser request, or 0 to leave
+     * the transport alone. The harness browser client has no deadline of its own
+     * on RPC or stream reads, so a request that never answers parks the composer
+     * and the session loader. Refer to docs/harness-defects.md.
+     */
+    requestTimeoutMs: number;
 }
 /**
  * Configuration schema, used for both the composition entry and the settings
  * namespace, so a stored value and a composed row validate identically.
  */
 export declare const Config: z<Config>;
-/**
- * Register the plugin's tools and settings namespace.
- *
- * The namespace is registered against the settings service when it is present,
- * which makes the stored document the source of truth: a saved value overrides
- * the composition entry, and `setSource` keeps the resolver pointed at the
- * resolved configuration. Without the service the composition entry stands
- * alone, so a deployment that does not compose settings still works.
- *
- * @param ctx - the plugin context.
- * @param config - the composition entry for this row.
- */
 export declare function apply(ctx: Context, config: Config): void;
-export { SourcegraphError };
+export { SourcegraphError, FetchError };

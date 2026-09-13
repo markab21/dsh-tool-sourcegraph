@@ -187,12 +187,19 @@ bad query locally, before a round trip. That work is pending, together with the
 `sourcegraph_fetch` and `sourcegraph_repo` tools. The directory is the largest
 part of the package, which is important to know before you redistribute it.
 
-`tsc` compiles the tree to `dist/vendor/...`, so it ships without a copy step. The
-compiler settings stay separate. `tsconfig.json` holds every strict flag for this
-project and excludes `src/vendor`. `tsconfig.vendor.json` covers `src/vendor` with
-`strict` on and only `noUncheckedIndexedAccess` and
-`exactOptionalPropertyTypes` relaxed, because the upstream code reports 15
-strictness problems that are not defects. A rewrite of third-party logic to
+`tsc` compiles the tree to `dist/vendor/...`, so it ships without a copy step.
+
+The build uses one configuration, `tsconfig.json`. It holds every strict flag
+except two: `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` are
+relaxed because the upstream code reports 15 strictness problems that are not
+defects. `strict` itself stays on, so everything it covers still applies.
+
+An earlier revision split this into two configurations, with a separate
+`tsconfig.vendor.json` for the vendored tree. That split had to go once the plugin
+actually imported the vendored modules: an import from project code pulls those
+files into whichever configuration compiles the importer, so the relaxed settings
+no longer isolated anything. One configuration with two flags relaxed is the
+honest description of what the build does. A rewrite of third-party logic to
 satisfy our preferences moves the copy away from upstream and makes it harder to
 audit.
 

@@ -5,8 +5,8 @@
     "moduleResolution": "NodeNext",
     "rewriteRelativeImportExtensions": true,
     "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false,
     "declaration": true,
     "sourceMap": true,
     "outDir": "dist",
@@ -21,15 +21,9 @@
     "src/**/*.ts"
   ],
   "exclude": [
-    "src/vendor",
     "tests",
     "upstream",
     "node_modules",
     "dist"
-  ],
-  "references": [
-    {
-      "path": "./tsconfig.vendor.json"
-    }
   ]
 }

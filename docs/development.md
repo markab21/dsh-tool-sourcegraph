@@ -54,33 +54,35 @@ Use `pnpm_config_cache_dir` and not `npm_config_cache`. pnpm reads environment
 settings with the prefix `pnpm_config_`, so `npm_config_cache` has no effect on
 pnpm. The name `npm_config_cache` is correct for npm.
 
-## The three TypeScript configurations
+## The TypeScript configuration
 
-The build is split, because third-party code and our code need different settings.
+The build uses one configuration, `tsconfig.json`, and a second for the tests.
 
 | Configuration | Covers | Strictness |
 |---|---|---|
-| `tsconfig.json` | Everything under `src/` except `src/vendor` | All strict flags on |
-| `tsconfig.vendor.json` | `src/vendor/**` only | `strict` on. `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` off |
-| `tsconfig.test.json` | `src/**` except the vendor tree, and `tests/**` | Extends `tsconfig.json`, so the same flags as our own code |
+| `tsconfig.json` | Everything under `src/`, including `src/vendor` | Every strict flag, except the two named below |
+| `tsconfig.test.json` | `src/**` and `tests/**` | Extends `tsconfig.json`, so the same settings |
 
-`tsconfig.json` refers to the vendor project, so `tsc -b tsconfig.json` builds
-both and writes `dist/vendor/...` next to `dist/...`. The command
-`pnpm run typecheck` checks each one on its own.
+`tsc -b tsconfig.json` writes `dist/...` and `dist/vendor/...` together. The
+command `pnpm run typecheck` checks both files in turn.
 
-The relaxed flags are recorded in `tsconfig.vendor.json` and in
-`src/vendor/sourcegraph-query/PROVENANCE.md`. The vendored tree reports 15 errors
-under our strict flags, and each error is a strictness complaint in the logic of
-upstream rather than a defect. A rewrite of third-party code to satisfy our
-preferences moves the copy away from upstream and makes it harder to audit.
+Two flags are relaxed in `tsconfig.json`: `noUncheckedIndexedAccess` and
+`exactOptionalPropertyTypes`. The vendored tree reports 15 errors under them, and
+each error is a strictness complaint in the logic of upstream rather than a
+defect. A rewrite of third-party code to satisfy our preferences moves the copy
+away from upstream and makes it harder to audit. The flag `strict` stays on, so
+everything it covers still applies to that tree.
 
-The configuration relaxes exactly two flags. The flag `strict` stays on, so
-everything that it covers still applies to the vendored tree. This point is
-important, because `tsconfig.test.json` checks our own code. That file extends
-`tsconfig.json` and not the vendor configuration, for this reason. An earlier
-revision extended the vendor configuration, and that weakened the check for
-`src/**` and `tests/**` without a warning. The result was a false negative inside
-`pnpm run typecheck`.
+The reason is recorded in `src/vendor/sourcegraph-query/PROVENANCE.md`.
+
+An earlier revision split this into two configurations, with a separate
+`tsconfig.vendor.json` for the vendored tree, and the test configuration extended
+that one. Two problems came from the split. The tests inherited the two relaxed
+flags, which weakened the check on our own source without a warning, so a broken
+test still reported clean. Then, once the plugin began importing the vendored
+modules, the split stopped isolating anything: an import from project code pulls
+the imported files into whichever configuration compiles the importer. One
+configuration with two flags relaxed is what the build actually does.
 
 Both configurations exclude `upstream/`, by design. Without that line, `tsc` walks
 into the submodule and writes `.js` files next to its `.ts` sources. That pollutes
