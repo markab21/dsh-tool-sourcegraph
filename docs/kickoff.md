@@ -123,14 +123,16 @@ results, with `repository`, `path`, `lineMatches[].lineNumber`, `repoStars`,
 `skipped[]` limit explanations). A token is required for private instances;
 the same endpoint accepts `Authorization: token <token>`.
 
-### (B) Register a `ctx.web` provider
+### (B) Register a `ctx.web` provider — considered, rejected
 
 `registerSearchProvider({ id, available(), search() })` would make Sourcegraph
 one option behind the existing `web_search` tool, selectable per deployment.
 Cheaper in code, but it collapses code search into an 8-source generic search
-shape (`WebSearchResult`) and loses query semantics. Better as a *later*
-addition than as the primary design — and note it must not collide with the
-already-installed DeepSeek search provider (`WEB_DUPLICATE_PROVIDER`).
+shape (`WebSearchResult`) and loses query semantics — structural search,
+`select:`, and file fetch have no place in that shape. The seam would also have
+to dodge the already-installed DeepSeek search provider
+(`WEB_DUPLICATE_PROVIDER`). **Rejected** on 2026-09-13; the plugin registers its
+own tools.
 
 ### GraphQL
 
@@ -222,13 +224,69 @@ primary source; the raw endpoint is the fallback when the API is unavailable.
 
 The streaming endpoint is plain SSE over `fetch`, and GraphQL is a POST. Node's
 built-in `fetch` plus `AbortSignal` covers all of it, so the plugin adds no
-runtime dependencies — an SSE line parser and the GraphQL calls are ours to own.
+runtime dependencies for transport — an SSE line parser and the GraphQL calls
+are ours to own.
 
-### Rejected: the `ctx.web` provider route
+## 9b. Vendoring Sourcegraph's own TypeScript client
 
-`ctx.web.registerSearchProvider()` was considered in section 5 and is **not** the
-design. A code-search result does not fit `WebSearchResult`, and structural
-search, `select:`, and file fetch have no place in that shape.
+**Decision (2026-09-13): use Sourcegraph's native TypeScript query modules, not a
+reimplementation, and not their streaming client.**
+
+Sourcegraph's `client/shared/src/search/query/` tree is TypeScript, but it is
+**not consumable as a dependency**: `@sourcegraph/shared` is `"private": true`,
+and `@sourcegraph/common`, `@sourcegraph/http-client`, and `@sourcegraph/search-client`
+return 404 on the public registry. `@sourcegraph/codeintellify` (7.4.0) and
+`@sourcegraph/cody-shared` (0.0.10) are published but unrelated to query parsing.
+
+The upstream repository — [`sourcegraph/sourcegraph-public-snapshot`](https://github.com/sourcegraph/sourcegraph-public-snapshot)
+— is **archived and frozen** (last push 2024-09-02), which removes the usual
+objection to vendoring: there is no moving upstream to drift from.
+
+### What is vendored
+
+Ten files, 2,128 lines, verbatim, from commit `c864f15`:
+
+- `query/` — `token.ts`, `scanner.ts`, `parser.ts`, `printer.ts`, `filters.ts`,
+  `predicates.ts`, `query.ts`, `validate.ts`
+- `query/completions/` — `languageFilter.ts`, `selectFilter.ts`
+
+`validate.ts` earns its place: it flags an invalid query before a round trip,
+which is exactly the feedback a model needs when it builds a bad one.
+
+### What is deliberately not vendored
+
+`stream.ts` (737 lines) is RxJS-`Observable`-shaped and pulls
+`@microsoft/fetch-event-source`, `rxjs`, and `@sourcegraph/common`. A tool wants
+a bounded reader on `AbortSignal` with output caps — roughly 120 lines to write,
+and it fits `defineTool` far better than an adapted Observable would. The
+UI-only modules (`decoratedToken.ts`, `hover.ts`, `diagnostics.ts`,
+`patternMatcher.ts`, `analyze.ts`, `completion-utils.ts`) are not copied.
+
+### Three imports still need shims
+
+Nothing has been modified yet — the copies are verbatim, which is also why no
+per-file change notices are required yet. Before the tree typechecks in
+isolation: `SearchPatternType` (a generated enum) from two files, `Omit` from
+`utility-types` (use the TS builtin), and `SearchMatch['type']` from `stream.ts`
+(one property). `languageFilter.ts` also needs language data that upstream draws
+from `@sourcegraph/common`.
+
+**Worth reconsidering during implementation:** the two `completions/` modules and
+the `Completion` plumbing in `filters.ts` exist for UI autocompletion, which a
+model-facing tool never calls. Dropping them would also remove the language-data
+problem entirely.
+
+### License
+
+Upstream declares Apache-2.0 in `client/shared/package.json`, but the repository
+root applies the **enterprise license** to all files "except for files in or
+under any directory that contains a superseding license file" — and
+`client/shared/` contains only a third-party `NOTICE`, not a license file. The
+GitHub license metadata is `NOASSERTION`. Both readings are defensible; the
+project owner decided to proceed under the manifest's Apache-2.0 declaration
+with full attribution. That decision, and the requirement to revisit it before
+any public release, is recorded in `vendor/sourcegraph-query/PROVENANCE.md`
+along with both upstream license texts.
 
 ## 10. Proposed tool contracts
 
@@ -340,6 +398,10 @@ the `next`/`alpha` tags or pin explicitly — never `latest`.
 | `README.md` | Project overview |
 | `docs/kickoff.md` | This document |
 | `docs/development.md` | The local dev loop against a live Harness |
-| `LICENSE` | MIT |
+| `vendor/sourcegraph-query/` | Vendored Sourcegraph query modules + `PROVENANCE.md` |
+| `upstream/sourcegraph/` | Shallow submodule pinned to `c864f15` |
+| `LICENSE` | MIT (the vendored directory is separately licensed) |
 
-`src/` is intentionally absent: no plugin code has been written yet.
+`src/` is intentionally absent: no plugin code has been written yet. The
+vendored tree is also untouched — its imports still point outside itself, and
+rewriting them is the first implementation task.
