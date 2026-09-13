@@ -1,6 +1,6 @@
 {
   "name": "dsh-tool-sourcegraph",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Sourcegraph code search for DeepSeek Harness: search indexed code across repositories from the agent loop.",
   "license": "MIT",
   "private": false,
