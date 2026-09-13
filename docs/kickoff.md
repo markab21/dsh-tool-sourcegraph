@@ -1,9 +1,26 @@
 # dsh-tool-sourcegraph — Kickoff
 
-Exploration notes from 2026-09-13, before any plugin code was written. Everything
-under "Verified" was confirmed by running the installed Harness
-(`@deepseek-ai/dsh@0.1.5-rc.1`) on this machine, not read from documentation
-alone.
+> **Historical record — what was true before implementation, not a
+> description of the plugin now.** Read [`../README.md`](../README.md) for how to
+> install and configure it, and [`verification.md`](verification.md) for what has
+> been proven to work.
+>
+> Several of the decisions below were later changed by implementation. Where that
+> happened, the entry is annotated **superseded** rather than rewritten, because
+> the reasoning is still worth reading. Known divergences:
+>
+> | Recorded here | What actually shipped |
+> |---|---|
+> | Three tools in v1 (`sourcegraph_search`, `sourcegraph_fetch`, `sourcegraph_repo`) | **One** tool: `sourcegraph_search`. The other two are unwritten |
+> | `private: true` prevents an accidental release | `"private": false`, version 0.2.0 — publish-ready, and the git install path is public |
+> | `prepare` runs the build so git installs arrive compiled | No `prepare` script at all; `dist/` is committed instead |
+> | An unresolved credential reference means anonymous access | True only on a public instance. Against a private endpoint it answers `401` |
+> | The vendored query modules power the tool | Compiled and shipped, but **not yet imported** by runtime code |
+> | `ctx.settings` — "Instance URL and defaults in the GUI" (§4) | The namespace is registered and served, but no form exists; see [`settings-ui.md`](settings-ui.md) |
+>
+> Everything under "Verified" was confirmed by running the installed Harness
+> (`@deepseek-ai/dsh@0.1.5-rc.1`) on this machine, not read from documentation
+> alone.
 
 ## 1. Goal
 

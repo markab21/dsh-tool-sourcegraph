@@ -58,17 +58,24 @@ standards:
 | Config | Covers | Strictness |
 |---|---|---|
 | `tsconfig.json` | everything under `src/` **except** `src/vendor` | all strict flags on |
-| `tsconfig.vendor.json` | `src/vendor/**` only | `strictNullChecks`, `noUncheckedIndexedAccess`, and `exactOptionalPropertyTypes` off |
+| `tsconfig.vendor.json` | `src/vendor/**` only | `strict` **on**; `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` off |
+| `tsconfig.test.json` | `src/**` (except vendor) **and** `tests/**` | extends `tsconfig.json`, so the same flags as our own code |
 
 `tsconfig.json` references the vendor project, so `tsc -b tsconfig.json` builds
 both, emitting `dist/vendor/...` and `dist/...` side by side. `pnpm run typecheck`
 checks each independently.
 
 The relaxed flags are documented in `tsconfig.vendor.json` and
-`src/vendor/sourcegraph-query/PROVENANCE.md`. In short: the vendored tree
-produces 16 errors under our strict flags, all of them strictness complaints in
-upstream's own logic. Rewriting third-party code to satisfy our preferences would
-make the copy drift from upstream and harder to audit.
+`src/vendor/sourcegraph-query/PROVENANCE.md`. In short: the vendored tree produces
+16 errors under our strict flags, all of them strictness complaints in upstream's
+own logic. Rewriting third-party code to satisfy our preferences would make the
+copy drift from upstream and harder to audit.
+
+Exactly two flags are relaxed — `strict` itself stays on, so everything it covers
+still applies to that tree. This matters because `tsconfig.test.json` checks our
+own code: it extends `tsconfig.json` rather than the vendor config on purpose. An
+earlier revision extended the vendor config, which silently weakened the check for
+`src/**` and `tests/**` — a false-negative channel inside `pnpm run typecheck`.
 
 Both configs exclude `upstream/` deliberately. Without that, `tsc` walks into the
 submodule and emits `.js` next to its `.ts` sources, polluting a checkout that

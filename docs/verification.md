@@ -74,12 +74,19 @@ print(zstandard.ZstdDecompressor().stream_reader(open(sys.argv[1],'rb')).read().
 - A token supplied through the `apiToken` field (with `tokenRef` empty)
   authenticated against a private instance: `isError: false`.
 
-## Not yet verified
+## 4a. Formerly "not yet verified" — now closed
 
-The tool executing **inside the interactive web session**. That requires the web
-process to restart so the profile reloads with the plugin, and a fresh agent
-session so the tool set is rebuilt. Everything above was checked without a
-restart, which is why the headless profile stands in for it.
+An earlier revision carried a "Not yet verified" section here, saying the tool had
+not been shown running inside the interactive web session. Section 6 closes it:
+the web interface was restarted with the plugin installed, and the session
+transcript records the tool in the request header's `tools[]` with three executed
+calls.
+
+The reason it could not be shown before a restart is worth keeping. A session's
+tool set is built when the session is created, so installing a plugin does not add
+a tool to a session already running — the profile must reload **and** a new agent
+session must begin. `--dump-config` and a boot log will not show it, which is why
+the headless profile stood in.
 
 ## 5. The credential resolves with nothing exported
 

@@ -146,15 +146,34 @@ pnpm run check       # release + publint + pack dry-run
 install free of both a build step and an approval prompt. Run `pnpm run release`
 before committing so the artifact matches the source.
 
-### Why the vendored tree is under `src/`
+### The vendored tree — carried, not yet wired in
 
-`tsc` compiles it to `dist/vendor/...`, so it ships with the plugin without a
-separate copy step. Two configurations keep the standards separate:
-`tsconfig.json` holds every strict flag for this project's code and excludes
-`src/vendor`; `tsconfig.vendor.json` covers `src/vendor` with three strict flags
-off, because upstream's code produces 16 strictness complaints that are not
-defects. Rewriting third-party logic to satisfy our preferences would make the
-copy drift from upstream and harder to audit.
+`src/vendor/sourcegraph-query/` holds Sourcegraph's own query scanner and parser.
+**Nothing in the runtime imports it yet.** The tool passes its query to the server
+unchanged; the copy exists so a malformed query can be rejected locally before
+costing a round trip, which is the pending follow-up, along with the
+`sourcegraph_fetch` and `sourcegraph_repo` tools. It is the bulk of the published
+package, so that is worth knowing before you redistribute it.
+
+`tsc` compiles it to `dist/vendor/...`, so it ships without a separate copy step.
+The standards stay separate: `tsconfig.json` holds every strict flag for this
+project's code and excludes `src/vendor`; `tsconfig.vendor.json` covers
+`src/vendor` with `strict` still on and only
+`noUncheckedIndexedAccess`/`exactOptionalPropertyTypes` relaxed — upstream's code
+produces 16 strictness complaints that are not defects, and rewriting third-party
+logic to satisfy our preferences would make the copy drift from upstream and
+harder to audit.
+
+## Docs
+
+| Document | What it covers |
+|---|---|
+| [`docs/development.md`](docs/development.md) | Local dev loop, the three tsconfigs, the packaged-plugin resolution gotcha, verifying a mount |
+| [`docs/verification.md`](docs/verification.md) | Evidence log — what has been proven to work, and how each claim was checked |
+| [`docs/settings-ui.md`](docs/settings-ui.md) | The settings namespace, precedence, the browser settings API, and why no form exists yet |
+| [`src/vendor/sourcegraph-query/PROVENANCE.md`](src/vendor/sourcegraph-query/PROVENANCE.md) | Vendored code: exact upstream commit, every modification, the license reading |
+| [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | Both upstream license texts, shipped with the package |
+| [`docs/kickoff.md`](docs/kickoff.md) | **Historical** — pre-implementation exploration. Superseded decisions are annotated, not rewritten |
 
 ### Verifying a mount by hand
 

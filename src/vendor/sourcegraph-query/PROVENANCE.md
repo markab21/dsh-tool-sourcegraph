@@ -11,13 +11,26 @@
 | Upstream status | Archived by Sourcegraph; last push 2024-09-02 |
 | Source subtree | `client/shared/src/search/query/` |
 
+## Status: compiled and shipped, but not yet imported
+
+**Nothing in the runtime imports this tree today.** `src/index.ts` imports only
+`./client.js`, and the tool passes its query to the server unchanged. The vendored
+modules compile into `dist/vendor/` and ship, but no code path reaches them.
+
+This is a holding position, not an oversight, and it is stated here because the
+rest of the document explains why the copy exists. The intended use is query
+validation — running `validate.ts` before the request, so a malformed query is
+rejected locally instead of costing a round trip — plus the tools still to be
+written (`sourcegraph_fetch`, `sourcegraph_repo`). Until that lands, treat this
+directory as carried for later, and note that it is the bulk of the package.
+
 ## Why these files are vendored
 
-Sourcegraph's search-query language is the substance of the `sourcegraph_search`
-tool: passing a query through faithfully, and rejecting one the server would
-reject, depends on their scanner and parser semantics. That code is TypeScript,
-but it is **not published to npm** — `@sourcegraph/shared` is `"private": true`,
-and `@sourcegraph/common`, `@sourcegraph/http-client`, and `@sourcegraph/search-client`
+Sourcegraph's search-query language is what that intended validation depends on:
+rejecting a query the server would reject, using their scanner and parser
+semantics rather than an approximation of them. That code is TypeScript, but it
+is **not published to npm** — `@sourcegraph/shared` is `"private": true`, and
+`@sourcegraph/common`, `@sourcegraph/http-client`, and `@sourcegraph/search-client`
 do not exist on the public registry. It cannot be consumed as a dependency.
 
 The upstream tree is also frozen, so the usual objection to vendoring — silent

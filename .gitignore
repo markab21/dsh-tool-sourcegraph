@@ -1,3 +1,9 @@
+# Compiled output of vitest.config.ts, emitted by nothing (the test config is
+# noEmit). Kept out of the repository so a checked-in artifact cannot go stale.
+vitest.config.js
+vitest.config.d.ts
+vitest.config.js.map
+
 # Build output.
 #
 # dist/ is COMMITTED on purpose: it is the release artifact. The package
