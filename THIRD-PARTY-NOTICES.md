@@ -30,8 +30,8 @@ The upstream files are modified and not verbatim. The changes are a rewrite of
 the import specifiers, the replacement of three imports that pointed outside the
 tree with local shims, one narrowing fix in `scanner.ts`, and a change-notice
 header on each edited file. Each modification is listed in
-`vendor/sourcegraph-query/PROVENANCE.md`, which ships with this package for that
-reason.
+`src/vendor/sourcegraph-query/PROVENANCE.md`, which ships with this package for
+that reason.
 
 Each edited file carries a prominent notice that states the file changed. The
 notice is in the source and in the emitted JavaScript, because `tsc` removes a

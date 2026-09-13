@@ -47,8 +47,12 @@ If the cache of the package manager is not writable, point it at a writable
 directory for that command. Do not change the global configuration:
 
 ```sh
-npm_config_cache=$(mktemp -d) pnpm install
+pnpm_config_cache_dir=$(mktemp -d) pnpm install
 ```
+
+Use `pnpm_config_cache_dir` and not `npm_config_cache`. pnpm reads environment
+settings with the prefix `pnpm_config_`, so `npm_config_cache` has no effect on
+pnpm. The name `npm_config_cache` is correct for npm.
 
 ## The three TypeScript configurations
 
@@ -65,7 +69,7 @@ both and writes `dist/vendor/...` next to `dist/...`. The command
 `pnpm run typecheck` checks each one on its own.
 
 The relaxed flags are recorded in `tsconfig.vendor.json` and in
-`src/vendor/sourcegraph-query/PROVENANCE.md`. The vendored tree reports 16 errors
+`src/vendor/sourcegraph-query/PROVENANCE.md`. The vendored tree reports 15 errors
 under our strict flags, and each error is a strictness complaint in the logic of
 upstream rather than a defect. A rewrite of third-party code to satisfy our
 preferences moves the copy away from upstream and makes it harder to audit.
@@ -147,12 +151,37 @@ Two problems occur on a new profile:
 
 ## Rebuild while the plugin runs
 
-The profile tree contains `@deepseek-ai/cordis-plugin-hmr`, and a custom profile
-uses `patchReload: "live"` by default. The method is:
+A rebuild needs a restart by default. The `hmr` row exists in the profile tree,
+but it ships with `disabled: true`:
+
+```yaml
+- id: hmr
+  name: '@deepseek-ai/cordis-plugin-hmr'
+  disabled: true
+  config:
+    root: ['.']
+```
+
+The setting `patchReload: "live"` on a custom profile does not change this. That
+setting controls watching of the patch files, and it uses a fallback in the
+launcher. It does not watch the modules of a plugin.
+
+To get a reload after a build, enable the row in the profile patch file and give
+it the directory that holds the built entry:
+
+```yaml
+- id: hmr
+  disabled: false
+  config:
+    root: ['/absolute/path/to/dsh-sourcegraph/dist']
+```
+
+Then the method is:
 
 1. Change a file under `src/**`.
 2. Run `pnpm run build`.
-3. DSH sees the changed file under `dist/**` and reloads the plugin entry.
+3. The `hmr` row sees the changed file under `dist/**` and reloads the plugin
+   entry.
 
 A change to a harness package is different. Those packages are dependencies at the
 framework level, so a change to one needs a restart of the process. That behavior
@@ -163,7 +192,8 @@ is expected.
 No silent failure mode here is safe to trust. Use these checks in this order:
 
 1. `--dump-config` shows the plugin row under the `insert` of the overlay.
-2. The boot log contains no line with `failed to apply loader entry`.
+2. The boot log contains no line with `loader entries failed to apply` and no
+   line with `cannot resolve entry`.
 3. A temporary `console.log('[dsh-tool-sourcegraph] loaded')` in `apply` appears in
    the terminal. Remove it before you commit.
 4. The model receives the tool in the development interface at
@@ -175,7 +205,7 @@ No silent failure mode here is safe to trust. Use these checks in this order:
 |---|---|
 | `listen EADDRINUSE: address already in use 127.0.0.1:3080` | A development start without `--port`. The real interface holds port 3080 |
 | `EPERM: operation not permitted, open '…/.dsh/profiles/web/cordis.yml'` | No `DSH_HOME`, so the start tried to write the live profile. A sandbox can also refuse the write |
-| `failed to apply loader entry … cannot resolve entry` | A wrong path in the overlay, or the entry was not built |
+| `loader entries failed to apply`, or `cannot resolve entry <id>` | A wrong path in the overlay, or the entry was not built |
 | `Error: … plugin tree failed to load` with a stack inside the plugin | The module stopped during the import or during `apply`. Run the entry on its own with `node -e import(...)` to see the full error |
 | A dependency that is installed but not active as a layer | Its manifest has no `dsh.bundle.patch`, so DSH installed it as a usual dependency |
 | `pnpm not found on PATH` | `dsh plugin` sends the request to pnpm. Install pnpm, or use the overlay method |
@@ -216,8 +246,9 @@ imports of the harness change.
 ## Prove that the plugin runs
 
 The command `--dump-config` shows only that the row composes. To prove that the
-tool runs, drive the real registry. The file `.scratch/integration-check.mjs` is a
-working example.
+tool runs, drive the real registry with a short script. The repository does not
+contain that script, because `.scratch/` is ignored, so write it with the steps
+below.
 
 1. Build a `Context` and mount `ToolRuntime`. It also needs a `systemPrompt`
    service, because it connects the tool schemas to the prompt assembly.

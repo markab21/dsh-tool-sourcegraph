@@ -27,9 +27,13 @@ You must do this step for a private instance. The contributed row carries
 `endpoint: https://sourcegraph.com` and `tokenRef: SOURCEGRAPH_TOKEN` by default.
 Without a patch, every query goes to the public instance.
 
-Add an entry to the profile patch file. On a default install, the file is
-`~/.dsh/profiles/web/cordis.patch.yml`. A new profile contains an empty list and a
-comment header, so you add an entry. You do not replace one.
+Edit the profile patch file. On a default install, the file is
+`~/.dsh/profiles/web/cordis.patch.yml`.
+
+A new profile ships that file with a comment header and one line that contains an
+empty list: `[]`. Replace the `[]` with the entry below and keep the comments. Do
+not add the entry after the `[]`, because the result is not valid YAML and dsh
+stops with `failed to parse` and exit code 1.
 
 ```yaml
 # ~/.dsh/profiles/web/cordis.patch.yml
@@ -187,7 +191,7 @@ part of the package, which is important to know before you redistribute it.
 compiler settings stay separate. `tsconfig.json` holds every strict flag for this
 project and excludes `src/vendor`. `tsconfig.vendor.json` covers `src/vendor` with
 `strict` on and only `noUncheckedIndexedAccess` and
-`exactOptionalPropertyTypes` relaxed, because the upstream code reports 16
+`exactOptionalPropertyTypes` relaxed, because the upstream code reports 15
 strictness problems that are not defects. A rewrite of third-party logic to
 satisfy our preferences moves the copy away from upstream and makes it harder to
 audit.

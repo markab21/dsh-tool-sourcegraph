@@ -18,7 +18,7 @@
      *
      * The files under src/vendor are third-party code written against a
      * configuration this project does not control. Under the strict flags used
-     * for our own source it produces 16 errors, every one of them a strictness
+     * for our own source it produces 15 errors, every one of them a strictness
      * complaint in their own logic — possibly-undefined array and map lookups,
      * and exact-optional mismatches — rather than a real defect. We do not
      * intend to rewrite third-party source to satisfy our preferences, and a
@@ -28,7 +28,7 @@
      * Exactly two flags are relaxed here. `strict` stays on, so everything it
      * covers — strictFunctionTypes, strictBindCallApply, strictPropertyInitialization,
      * noImplicitThis, useUnknownInCatchVariables and the rest — still applies to
-     * this tree. Only the two flags that actually produce those 16 errors are off.
+     * this tree. Only the two flags that actually produce those 15 errors are off.
      * That is deliberate: this config is also extended by tsconfig.test.json,
      * which typechecks our own code, and a blanket `"strict": false` there would
      * have been a permanent false-negative channel.

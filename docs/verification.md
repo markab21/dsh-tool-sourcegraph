@@ -27,8 +27,13 @@ It does not use `curl`.
 
 ```sh
 dsh plugin --profile web add github:markab21/dsh-tool-sourcegraph
-node .scratch/installed-check.mjs   # mounts the built plugin, dispatches a call
 ```
+
+The install was then checked with a short script that mounted the built plugin and
+sent one call through the registry. The script lived in `.scratch/`, which is not
+in the repository, so the [Development](development.md) document describes how to
+write that check. The result was `isError: false` with the content that the model
+receives for a real query.
 
 The call returns `isError: false` and the content that the model receives for a
 real query.
@@ -108,9 +113,14 @@ file below is the file for this purpose:
 
 ```yaml
 # ~/.dsh/.credentials.yaml  (mode 600)
+version: 1
 refs:
   SOURCEGRAPH_TOKEN: <token>
 ```
+
+The line `version: 1` is necessary. Without it, `dsh-credentials-local` reads the
+file as the older flat layout and stops with
+`uses the pre-release flat layout. Add \`version: 1\``.
 
 The profile patch names that reference. The check was a headless agent run where
 neither `SRC_ACCESS_TOKEN` nor `SOURCEGRAPH_TOKEN` was in the environment:
@@ -133,12 +143,17 @@ and runs against the private instance. No environment variable was exported.
 The session transcript records it in three ways:
 
 ```
-transcript lines            : 2734
+transcript lines            : 3879
 sourcegraph_search in tools[]: True
-sourcegraph_search calls    : {'sourcegraph_search': 3}
+sourcegraph_search calls    : 6
 ```
 
-The three calls cover each class of match that the tool handles.
+The count grows while the session continues, because the transcript is a live
+record. Read the current figure with the script at the end of this section instead
+of trusting the number above.
+
+The first three calls are the checks in the table. The other three come from later
+exploration in the same session, and they show the same tool in ordinary use.
 
 | Query | Result |
 |---|---|
@@ -156,16 +171,36 @@ To repeat the transcript check, run:
 ```sh
 python3 - "$DSH_HOME/sessions/"*/session-*/session.v3.jsonl.zstd <<'PY'
 import json, sys, zstandard
-raw = zstandard.ZstdDecompressor().stream_reader(open(sys.argv[1],'rb')).read().decode()
-offered = calls = 0
-for line in raw.splitlines():
-    try: e = json.loads(line)
-    except: continue
-    if e.get('type') == 'request/header':
-        tools = (e.get('data',{}).get('header',{}) or {}).get('tools') or []
-        offered += any(isinstance(x,dict) and x.get('name')=='sourcegraph_search' for x in tools)
-    if e.get('type') == 'tool/call' and e.get('data',{}).get('name') == 'sourcegraph_search':
-        calls += 1
-print('offered in tools[]:', bool(offered), '| calls:', calls)
+
+# Inspect every file the glob passed, not only the first. A shell glob expands to
+# many arguments, and a script that reads sys.argv[1] would silently check one
+# session and say nothing about the rest.
+def inspect(path):
+    raw = zstandard.ZstdDecompressor().stream_reader(open(path, 'rb')).read().decode()
+    offered = calls = 0
+    for line in raw.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if event.get('type') == 'request/header':
+            tools = (event.get('data', {}).get('header', {}) or {}).get('tools') or []
+            offered += any(
+                isinstance(tool, dict) and tool.get('name') == 'sourcegraph_search'
+                for tool in tools
+            )
+        if event.get('type') == 'tool/call' and event.get('data', {}).get('name') == 'sourcegraph_search':
+            calls += 1
+    return bool(offered), calls
+
+for path in sys.argv[1:]:
+    offered, calls = inspect(path)
+    print(f'{calls:4} calls | offered={offered} | {path}')
 PY
 ```
+
+Every session that started after the plugin was installed reports `offered=True`,
+and the sessions that started before it report `offered=False`. Calls appear in one
+session only, which is the session that ran these checks and the exploration that
+followed them. Delegated subagent sessions inherit the tool, so they show
+`offered=True` with no calls of their own.

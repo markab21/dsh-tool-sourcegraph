@@ -59,7 +59,7 @@ describe('provenance record', () => {
     // The earlier figure described the upstream originals before headers were
     // added. Anything a reader could diff must describe what is actually here.
     const provenance = readFileSync(join(ROOT, 'src/vendor/sourcegraph-query/PROVENANCE.md'), 'utf8')
-    const claimed = provenance.match(/([\d,]+) lines total/)
+    const claimed = provenance.match(/([\d,]+) lines total/) ?? provenance.match(/are ([\d,]+) lines/)
     expect(claimed, 'PROVENANCE.md no longer states a line total').not.toBeNull()
 
     const actual = readdirSync(SRC_VENDOR)

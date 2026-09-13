@@ -45,8 +45,10 @@ compare each vendored file with its origin.
 ## Files copied from upstream
 
 All ten files are under `client/shared/src/search/query/` at the pinned commit.
-Each file has a header that names it as vendored and summarizes its change. The
-next section lists the changes.
+Each of the nine modified files has a header that names it as vendored and
+summarizes its change. The file `token.ts` is unmodified and has no such header,
+which is why the table above records it as "no". The next section lists the
+changes.
 
 | Vendored path | Upstream path | Modified? |
 |---|---|---|
@@ -61,8 +63,9 @@ next section lists the changes.
 | `query/languageFilter.ts` | `query/languageFilter.ts` | yes |
 | `query/selectFilter.ts` | `query/selectFilter.ts` | yes |
 
-The vendored tree is 2,432 lines total, and that figure includes the
-change-notice header on each of the nine modified files. All ten files are at one
+The fourteen files under `query/` are 2,432 lines total. That figure includes the
+four local shims and the change-notice header on each of the nine modified files.
+The ten files copied from upstream are 2,242 lines. All ten files are at one
 level, `query/`, and upstream also keeps them at that level. No
 `query/completions/` directory exists upstream.
 
@@ -169,7 +172,7 @@ The file `tsconfig.vendor.json` relaxes two settings for this directory only:
 `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`. The setting `strict`
 stays on.
 
-Under the strict settings of this project, the vendored tree reports 16 errors.
+Under the strict settings of this project, the vendored tree reports 15 errors.
 Each error is a strictness complaint about a possibly-undefined lookup, and not a
 defect. A rewrite of third-party logic to satisfy our preferences moves the copy
 away from upstream and makes it harder to audit. The relaxed settings keep the code
