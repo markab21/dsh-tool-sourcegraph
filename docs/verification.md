@@ -80,3 +80,34 @@ The tool executing **inside the interactive web session**. That requires the web
 process to restart so the profile reloads with the plugin, and a fresh agent
 session so the tool set is rebuilt. Everything above was checked without a
 restart, which is why the headless profile stands in for it.
+
+## 5. The credential resolves with nothing exported
+
+The profile's earlier `tokenRef: SRC_ACCESS_TOKEN` only existed in the project's
+`.env`, so a relaunched dsh resolved nothing and a private instance answered
+`401 Invalid access token`. Worse, the tool then *silently used the default
+endpoint*, because a bundle's config is only what the owning patch layer says —
+so the failure looked like a bad token against `sourcegraph.com`.
+
+The token is now stored under the reference the plugin defaults to, in the file
+designed for it:
+
+```yaml
+# ~/.dsh/.credentials.yaml  (mode 600)
+refs:
+  SOURCEGRAPH_TOKEN: <token>
+```
+
+and the profile patch names that reference. Verified with a headless agent run
+where **neither `SRC_ACCESS_TOKEN` nor `SOURCEGRAPH_TOKEN` was in the
+environment**:
+
+```
+--- SRC_ACCESS_TOKEN set? NO | SOURCEGRAPH_TOKEN set? NO ---
+**Tool call succeeded** — no error message was returned.
+- github.com/bercastle/onscript_asr_service — cmd/asr-service/real_runner.go:2131
+```
+
+Resolution order for a reference is inherited environment first, then the stored
+`refs` map (`dsh-credentials-local`), so an exported variable still wins when one
+exists — storing it does not take that away.
