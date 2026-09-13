@@ -39,3 +39,20 @@ coverage/
 # Package manager
 npm-debug.log*
 pnpm-debug.log*
+
+# Agent and skill installs.
+#
+# `npx skills add …` writes SKILL.md packages into whichever agent directories
+# it detects, and a project-scoped install would put them here. They are tooling
+# state, not part of this package, so they must never be committed. The
+# SimpleEnglish skill used for these docs is installed globally (~/.agents/skills),
+# which keeps this repository clean.
+.agents/
+.skills/
+.codebuddy/
+.cursor/
+continue/
+.claude/
+.codex/
+AGENTS.md
+skills-lock.json

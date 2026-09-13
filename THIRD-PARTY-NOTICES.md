@@ -16,34 +16,35 @@ client, copied from `client/shared/src/search/query/`.
 | Commit | `c864f15af264f0f456a6d8a83290b5c940715349` (2024-08-22) |
 | Upstream manifest license | Apache-2.0 (`client/shared/package.json`) |
 
-**License note.** Upstream declares Apache-2.0 in the package manifest, while the
-repository root applies the Sourcegraph Enterprise License to all files "except
+License note. Upstream declares Apache-2.0 in the package manifest. The root of
+that repository applies the Sourcegraph Enterprise License to all files "except
 for files in or under any directory that contains a superseding license file."
-No such file exists under `client/shared/` — it contains only a third-party
-`NOTICE` — and the repository's license metadata is `NOASSERTION`. Both readings
-are defensible. The maintainers of this package proceed under the manifest's
-Apache-2.0 declaration and record the ambiguity here rather than resolving it
-silently. This should be revisited before any public release.
+The directory `client/shared/` contains no such file. It contains only a
+third-party `NOTICE`, and the license metadata of the repository is
+`NOASSERTION`. Both readings are possible. The maintainers of this package
+continue under the declaration in the manifest and record the ambiguity here
+instead of resolving it without a word. Examine this question again before a
+public release.
 
-The upstream files are **modified**, not verbatim. The changes are: import
-specifier rewriting; three imports that pointed outside the tree replaced with
-local shims; one narrowing fix in `scanner.ts`; and a change-notice header on
-each edited file. Every modification is listed in
+The upstream files are modified and not verbatim. The changes are a rewrite of
+the import specifiers, the replacement of three imports that pointed outside the
+tree with local shims, one narrowing fix in `scanner.ts`, and a change-notice
+header on each edited file. Each modification is listed in
 `vendor/sourcegraph-query/PROVENANCE.md`, which ships with this package for that
 reason.
 
-Each edited file carries a prominent notice stating that it was changed — in the
-source **and in the emitted JavaScript**, because `tsc` drops a file-leading
-comment when the statement after it is elided, and a notice that does not survive
-the build is not a notice. Apache-2.0 section 4(b) requires the notice and
-section 4(d) requires this file's contents to be retained alongside the code.
+Each edited file carries a prominent notice that states the file changed. The
+notice is in the source and in the emitted JavaScript, because `tsc` removes a
+comment at the start of a file when the statement after it is dropped. A notice
+that does not survive the build is not a notice. Apache-2.0 section 4(b) requires
+the notice, and section 4(d) requires the contents of this file to stay with the
+code.
 
-The vendored tree is not currently imported by the plugin's runtime code; it is
-carried for query validation and future tools. That does not change the
-obligations above, and it is stated here so a redistributor is not misled about
-why Apache-2.0 code is present.
+No runtime code imports the vendored tree today. The package carries it for query
+validation and for later tools. That fact does not change the obligations above,
+and it appears here so that a redistributor knows why Apache-2.0 code is present.
 
-Full upstream license texts follow.
+The full upstream license texts follow.
 
 ---
 

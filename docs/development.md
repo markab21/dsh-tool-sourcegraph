@@ -1,17 +1,17 @@
 # Development loop
 
-How to run this plugin against a live DeepSeek Harness without touching the
-`~/.dsh` installation the user is currently working in.
+This document describes how to run the plugin against a live DeepSeek Harness
+without a change to the `~/.dsh` installation that you use every day.
 
-## Ground rules
+## Rules
 
-- **Never boot a second server on port 3080.** That is the running GUI. A dev
-  instance uses `--port 3081`.
-- **Never let a dev boot write to the real `$DSH_HOME`.** Always set `DSH_HOME`
-  to a scratch directory for the duration of the command.
-- The profile's `cordis.yml` is rewritten on **every** boot (the composed tree is
-  materialized there), so a boot against the real home is a write to a live
-  configuration file. Scratch home avoids the question entirely.
+- Do not start a second server on port 3080. The running interface uses that port.
+  A development instance uses `--port 3081`.
+- Do not let a development start write to the real `$DSH_HOME`. Set `DSH_HOME` to
+  a temporary directory for the duration of the command.
+- DSH writes the file `cordis.yml` of the profile at each start, because it
+  materializes the composed tree there. A start against the real home is therefore
+  a write to a live configuration file. A temporary home removes the problem.
 
 ## One-time setup
 
@@ -21,8 +21,8 @@ pnpm install          # harness packages land as devDependencies
 pnpm run build        # tsc -b -> dist/
 ```
 
-The submodule is optional for building — the vendored files are committed — but
-is needed to diff them against upstream:
+The submodule is not necessary for a build, because the repository contains the
+vendored files. You need it to compare those files with upstream:
 
 ```sh
 git submodule update --init --depth 1   # ~56 MB; without --depth 1 it is ~1.3 GB
@@ -30,64 +30,67 @@ git submodule update --init --depth 1   # ~56 MB; without --depth 1 it is ~1.3 G
 
 ### Why the project pins its own store and workspace
 
-`pnpm-workspace.yaml` marks this directory as its own workspace root and
-`.npmrc` keeps the content-addressable store inside the project
-(`.pnpm-store/`). Both exist because a `pnpm-workspace.yaml` in `$HOME` would
-otherwise make pnpm treat the home directory as the workspace root and try to
-manage `~/node_modules` instead of this project's.
+The file `pnpm-workspace.yaml` makes this directory its own workspace root, and
+`.npmrc` keeps the content-addressable store inside the project at
+`.pnpm-store/`. Both files are necessary because a `pnpm-workspace.yaml` in `$HOME`
+makes pnpm treat the home directory as the workspace root. pnpm then manages
+`~/node_modules` in place of the `node_modules` of this project.
 
-If an install is interrupted, pnpm can be left wanting to purge
-`node_modules` and, without a TTY, refusing:
+An interrupted install can leave pnpm in a state where it wants to remove
+`node_modules`. Without a terminal, pnpm refuses and stops:
 
 ```sh
 CI=true pnpm install --ignore-scripts   # then re-run without CI
 ```
 
-If the package manager cache itself is not writable, point it somewhere
-writable for the command rather than changing global config:
+If the cache of the package manager is not writable, point it at a writable
+directory for that command. Do not change the global configuration:
 
 ```sh
 npm_config_cache=$(mktemp -d) pnpm install
 ```
 
-## The two TypeScript configurations
+## The three TypeScript configurations
 
-The build is split, because third-party code and our code have different
-standards:
+The build is split, because third-party code and our code need different settings.
 
-| Config | Covers | Strictness |
+| Configuration | Covers | Strictness |
 |---|---|---|
-| `tsconfig.json` | everything under `src/` **except** `src/vendor` | all strict flags on |
-| `tsconfig.vendor.json` | `src/vendor/**` only | `strict` **on**; `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` off |
-| `tsconfig.test.json` | `src/**` (except vendor) **and** `tests/**` | extends `tsconfig.json`, so the same flags as our own code |
+| `tsconfig.json` | Everything under `src/` except `src/vendor` | All strict flags on |
+| `tsconfig.vendor.json` | `src/vendor/**` only | `strict` on. `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` off |
+| `tsconfig.test.json` | `src/**` except the vendor tree, and `tests/**` | Extends `tsconfig.json`, so the same flags as our own code |
 
-`tsconfig.json` references the vendor project, so `tsc -b tsconfig.json` builds
-both, emitting `dist/vendor/...` and `dist/...` side by side. `pnpm run typecheck`
-checks each independently.
+`tsconfig.json` refers to the vendor project, so `tsc -b tsconfig.json` builds
+both and writes `dist/vendor/...` next to `dist/...`. The command
+`pnpm run typecheck` checks each one on its own.
 
-The relaxed flags are documented in `tsconfig.vendor.json` and
-`src/vendor/sourcegraph-query/PROVENANCE.md`. In short: the vendored tree produces
-16 errors under our strict flags, all of them strictness complaints in upstream's
-own logic. Rewriting third-party code to satisfy our preferences would make the
-copy drift from upstream and harder to audit.
+The relaxed flags are recorded in `tsconfig.vendor.json` and in
+`src/vendor/sourcegraph-query/PROVENANCE.md`. The vendored tree reports 16 errors
+under our strict flags, and each error is a strictness complaint in the logic of
+upstream rather than a defect. A rewrite of third-party code to satisfy our
+preferences moves the copy away from upstream and makes it harder to audit.
 
-Exactly two flags are relaxed — `strict` itself stays on, so everything it covers
-still applies to that tree. This matters because `tsconfig.test.json` checks our
-own code: it extends `tsconfig.json` rather than the vendor config on purpose. An
-earlier revision extended the vendor config, which silently weakened the check for
-`src/**` and `tests/**` — a false-negative channel inside `pnpm run typecheck`.
+The configuration relaxes exactly two flags. The flag `strict` stays on, so
+everything that it covers still applies to the vendored tree. This point is
+important, because `tsconfig.test.json` checks our own code. That file extends
+`tsconfig.json` and not the vendor configuration, for this reason. An earlier
+revision extended the vendor configuration, and that weakened the check for
+`src/**` and `tests/**` without a warning. The result was a false negative inside
+`pnpm run typecheck`.
 
-Both configs exclude `upstream/` deliberately. Without that, `tsc` walks into the
-submodule and emits `.js` next to its `.ts` sources, polluting a checkout that
-must stay pristine for provenance diffs. If that ever happens, clean it with:
+Both configurations exclude `upstream/`, by design. Without that line, `tsc` walks
+into the submodule and writes `.js` files next to its `.ts` sources. That pollutes
+a checkout which must stay clean for the provenance comparison. If it occurs,
+clean the checkout with:
 
 ```sh
 git -C upstream/sourcegraph reset --hard && git -C upstream/sourcegraph clean -fd
 ```
 
-## Option A — overlay patch (fastest, no install)
+## Option A: an overlay patch
 
-An overlay can load a built entry straight from the absolute path:
+An overlay loads a built entry from an absolute path. This is the fastest method
+and needs no install.
 
 ```sh
 mkdir -p .scratch
@@ -102,22 +105,22 @@ dsh --profile dev --from-default-profile web \
   --port 3081 --no-open
 ```
 
-Useful non-destructive checks:
+These checks do not change anything:
 
 ```sh
-# Show the composed tree (includes the normalized plugin row) and exit.
+# Show the composed tree, with the normalized plugin row, and exit.
 dsh --profile dev --patch "$PWD/.scratch/dev-patch.yml" --dump-config
 
-# Verify the built module's exports without booting anything.
+# Show the exports of the built module without a start.
 node -e "import('./dist/index.js').then(m => console.log(Object.keys(m), m.name, m.inject))"
 ```
 
-The plugin entry should be the package root (`dist/index.js`), not a source
-file: the loader executes JavaScript.
+The plugin entry must be the package root, `dist/index.js`. It must not be a
+source file, because the loader runs JavaScript.
 
-## Option B — install into a scratch profile (matches the shipping path)
+## Option B: install into a temporary profile
 
-This exercises exactly what a user will do:
+This option uses the same steps as a user.
 
 ```sh
 export DSH_HOME=$(mktemp -d)
@@ -125,70 +128,72 @@ dsh plugin --profile dev add .          # relative spec is anchored to $PWD
 dsh --profile dev --port 3081 --no-open
 ```
 
-`dsh plugin add <spec>` forwards to pnpm inside `$DSH_HOME/profiles/dev`, then
-appends the bundle to `dsh.profile.bundles` because the manifest declares
-`dsh.bundle.patch`. Remove it with `dsh plugin --profile dev remove dsh-tool-sourcegraph`.
+The command `dsh plugin add <spec>` sends the request to pnpm inside
+`$DSH_HOME/profiles/dev`. It then adds the bundle to `dsh.profile.bundles`,
+because the manifest declares `dsh.bundle.patch`. To remove the plugin, run
+`dsh plugin --profile dev remove dsh-tool-sourcegraph`.
 
-Two things that will bite on a fresh profile:
+Two problems occur on a new profile:
 
-- **Credentials.** The scratch home has none, so the agent cannot call a model
-  and the tool never runs. Either symlink the credential store from the real
-  home, or provide the key through the environment for that command.
-- **Git-hosted installs.** A git-hosted package that declares a `prepare` script
-  runs it on install, and pnpm blocks that until its exact key is added under
-  `allowBuilds` in the profile's `pnpm-workspace.yaml`. **This package is not one
-  of those**: it declares no `prepare`, because `dist/` is committed, and a
-  `github:` install completes with no build step and no approval prompt. The gate
-  still applies to any *other* git-hosted plugin you try.
+- Credentials. A temporary home has none, so the agent cannot call a model and the
+  tool never runs. Link the credential store from the real home, or give the key
+  through the environment for that command.
+- A package from git. A package that declares a `prepare` script runs that script
+  at install time. pnpm blocks the script until you add its key to `allowBuilds`
+  in the `pnpm-workspace.yaml` file of the profile. This package declares no
+  `prepare` script, because the repository contains `dist/`. An install from
+  `github:` therefore completes with no build step and no approval. The block
+  still applies to other plugins from git.
 
-## Rebuilding while it runs
+## Rebuild while the plugin runs
 
-Host-side HMR (`@deepseek-ai/cordis-plugin-hmr`) is mounted in the profile tree,
-and a custom profile defaults to `patchReload: "live"`. In practice:
+The profile tree contains `@deepseek-ai/cordis-plugin-hmr`, and a custom profile
+uses `patchReload: "live"` by default. The method is:
 
-1. edit `src/**`
-2. `pnpm run build`
-3. the changed `dist/**` file is watched and the plugin entry reloads
+1. Change a file under `src/**`.
+2. Run `pnpm run build`.
+3. DSH sees the changed file under `dist/**` and reloads the plugin entry.
 
-Harness packages themselves are framework-level dependencies: changing those
-falls back to a process restart, which is expected.
+A change to a harness package is different. Those packages are dependencies at the
+framework level, so a change to one needs a restart of the process. That behavior
+is expected.
 
-## Verifying the plugin actually loaded
+## Make sure that the plugin loaded
 
-There is no silent failure mode worth trusting — check, in this order:
+No silent failure mode here is safe to trust. Use these checks in this order:
 
-1. `--dump-config` shows the plugin row under the overlay's `insert`.
-2. The boot log has no `failed to apply loader entry` line.
-3. A temporary `console.log('[dsh-tool-sourcegraph] loaded')` in `apply` appears
-   in the terminal (remove before committing).
-4. The tool is offered to the model in the dev GUI at
+1. `--dump-config` shows the plugin row under the `insert` of the overlay.
+2. The boot log contains no line with `failed to apply loader entry`.
+3. A temporary `console.log('[dsh-tool-sourcegraph] loaded')` in `apply` appears in
+   the terminal. Remove it before you commit.
+4. The model receives the tool in the development interface at
    `http://127.0.0.1:3081`.
 
 ## Common failures
 
 | Symptom | Cause |
 |---|---|
-| `listen EADDRINUSE: address already in use 127.0.0.1:3080` | A dev boot without `--port`; the real GUI holds 3080 |
-| `EPERM: operation not permitted, open '…/.dsh/profiles/web/cordis.yml'` | No `DSH_HOME` set, so the boot tried to rewrite the live profile (or a sandbox denied the write) |
-| `failed to apply loader entry … cannot resolve entry` | Wrong path in the overlay, or the entry was not built |
-| `Error: … plugin tree failed to load` with a stack inside the plugin | The module threw during import or `apply`; run the entry directly with `node -e import(...)` to see the raw error |
-| Dependency installed but not activated as a layer | Its manifest lacks `dsh.bundle.patch`, so it was installed as a plain dependency |
-| `pnpm not found on PATH` | `dsh plugin` forwards to pnpm; install it or use the overlay route |
+| `listen EADDRINUSE: address already in use 127.0.0.1:3080` | A development start without `--port`. The real interface holds port 3080 |
+| `EPERM: operation not permitted, open '…/.dsh/profiles/web/cordis.yml'` | No `DSH_HOME`, so the start tried to write the live profile. A sandbox can also refuse the write |
+| `failed to apply loader entry … cannot resolve entry` | A wrong path in the overlay, or the entry was not built |
+| `Error: … plugin tree failed to load` with a stack inside the plugin | The module stopped during the import or during `apply`. Run the entry on its own with `node -e import(...)` to see the full error |
+| A dependency that is installed but not active as a layer | Its manifest has no `dsh.bundle.patch`, so DSH installed it as a usual dependency |
+| `pnpm not found on PATH` | `dsh plugin` sends the request to pnpm. Install pnpm, or use the overlay method |
 
-## Packaging gotcha: harness packages must resolve completely
+## Packaging problem: the harness packages must resolve
 
-Mounting the plugin by absolute path makes Node resolve its `@deepseek-ai/*`
-imports from *this checkout's* `node_modules` — not the host's. That means every
-transitive dependency of `@deepseek-ai/dsh-tools` must also be installed here, or
-the load fails with a confusing error that points at the host package:
+When you mount the plugin by absolute path, Node resolves its `@deepseek-ai/*`
+imports from the `node_modules` of this checkout, and not from the host. Each
+transitive dependency of `@deepseek-ai/dsh-tools` must therefore also be installed
+here. Without it, the load stops with an error that names the host package:
 
 ```
 Cannot find package '@deepseek-ai/dsh-scope'
   imported from .../dsh-sourcegraph/node_modules/@deepseek-ai/dsh-tools/lib/index.js
 ```
 
-The failure is about *our* tree, even though the message names the host's. Check
-the chain directly:
+The failure is in our tree, although the message names the host. To look at the
+chain directly, run:
 
 ```sh
 for p in $(grep -ohE '^import [^;]*from "[^"]+"' \
@@ -198,26 +203,31 @@ for p in $(grep -ohE '^import [^;]*from "[^"]+"' \
 done
 ```
 
-`@deepseek-ai/dsh-scope` is the one this project needed and did not have until
-the first real boot. The plugin's `peerDependencies` are declared, but a
-path-mounted plugin still has to be loadable end to end on its own.
+The package `@deepseek-ai/dsh-scope` is the one that this project needed, and it
+was absent until the first real start. The plugin declares its
+`peerDependencies`, but a plugin that you mount by path must still load on its own
+from start to end.
 
-A published or profile-installed plugin resolves these from the profile's
-`node_modules` instead, which carries the whole harness. The dependency list
-above is what makes the *development* path work, so keep it in sync when the
-harness's own imports change.
+A published plugin, or one installed into a profile, resolves these packages from
+the `node_modules` of the profile, which contains the full harness. The dependency
+list above is what makes the development path work, so keep it current when the
+imports of the harness change.
 
-## Proving the plugin actually runs
+## Prove that the plugin runs
 
-`--dump-config` only proves the row composes. To prove the tool executes, drive
-the real registry (`.scratch/integration-check.mjs` is a working example):
+The command `--dump-config` shows only that the row composes. To prove that the
+tool runs, drive the real registry. The file `.scratch/integration-check.mjs` is a
+working example.
 
-1. build a `Context` and mount `ToolRuntime` — it also requires a
-   `systemPrompt` service, because it wires tool schemas into prompt assembly;
-2. `ctx.provide('credentials', …)` returning the reference the profile configures
-   — Cordis requires `provide` before the property is readable;
-3. `await ctx.plugin(pluginModule, config)` — the same call the loader makes;
-4. `ctx.tools.execute({ callId, signal, name, arguments })` — `signal` is
-   required, and omitting it fails inside the registry rather than in your code.
+1. Build a `Context` and mount `ToolRuntime`. It also needs a `systemPrompt`
+   service, because it connects the tool schemas to the prompt assembly.
+2. Call `ctx.provide('credentials', …)` with a value that returns the reference
+   that the profile configures. Cordis needs `provide` before you can read the
+   property.
+3. Call `await ctx.plugin(pluginModule, config)`. This is the same call that the
+   loader makes.
+4. Call `ctx.tools.execute({ callId, signal, name, arguments })`. The `signal`
+   argument is necessary. Without it, the call fails inside the registry and not
+   in your code.
 
-A passing run prints the model-facing content the agent loop would receive.
+A successful run prints the content that the agent loop receives.

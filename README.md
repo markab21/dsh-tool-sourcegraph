@@ -2,9 +2,9 @@
 
 Sourcegraph code search for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
 
-Gives the agent loop `sourcegraph_search`: full Sourcegraph query syntax against
-public `sourcegraph.com` or a private/self-hosted instance, including code in
-repositories that are not cloned locally.
+The plugin gives the agent one tool, `sourcegraph_search`. The tool sends a full
+Sourcegraph query to a public or private instance. It finds code in repositories
+that are not on your disk.
 
 ## Install
 
@@ -12,62 +12,64 @@ repositories that are not cloned locally.
 dsh plugin --profile web add github:markab21/dsh-tool-sourcegraph
 ```
 
-This is the only install path today — the package is **not published to npm**, so
-`dsh plugin add dsh-tool-sourcegraph` fails with `ERR_PNPM_FETCH_404`. The git
-install needs no build step and no pnpm approval prompt: `dist/` is committed and
-the package declares no `prepare` script.
+This is the only install command that works today. The package is not on npm, so
+`dsh plugin add dsh-tool-sourcegraph` stops with `ERR_PNPM_FETCH_404`. The install
+from git needs no build step and no pnpm approval. The repository contains the
+built `dist/` directory, and the package declares no `prepare` script.
 
-Then restart the profile. The bundle declares `dsh.bundle.patch`, so the package
-joins the profile's layer stack automatically; nothing else to wire up.
+Restart the profile after the install. The bundle declares `dsh.bundle.patch`, so
+the package joins the profile layer stack by itself. You do not wire up anything
+else.
 
-### Configure the instance
+### Point the plugin at your instance
 
-**This step is required for a private instance.** The contributed row carries
-`endpoint: https://sourcegraph.com` and `tokenRef: SOURCEGRAPH_TOKEN` by default,
-so without a patch every query goes to the *public* instance.
+You must do this step for a private instance. The contributed row carries
+`endpoint: https://sourcegraph.com` and `tokenRef: SOURCEGRAPH_TOKEN` by default.
+Without a patch, every query goes to the public instance.
 
-Append to your profile's patch file — on a default install,
-`~/.dsh/profiles/web/cordis.patch.yml`. A fresh profile ships that file as a bare
-`[]` with a comment header, so you are appending an entry, not replacing one:
+Add an entry to the profile patch file. On a default install, the file is
+`~/.dsh/profiles/web/cordis.patch.yml`. A new profile contains an empty list and a
+comment header, so you add an entry. You do not replace one.
 
 ```yaml
 # ~/.dsh/profiles/web/cordis.patch.yml
 - id: tool-sourcegraph
   config:
     endpoint: https://sourcegraph.example.com   # default: https://sourcegraph.com
-    tokenRef: SOURCEGRAPH_TOKEN                 # a credential NAME, not the token
-    maxMatches: 30                             # count: is capped by this
+    tokenRef: SOURCEGRAPH_TOKEN                 # a credential name, not the token
+    maxMatches: 30                             # the count argument cannot go higher
     maxCharsPerMatch: 600
     search: true
 ```
 
-**Check that the patch took effect.** An unknown `id` is not an error: dsh prints
-`patch: entry "tool-sourcegraphx" not found` to stderr and continues with exit 0,
-leaving the default endpoint in place. Confirm the row before using the tool:
+Make sure that the patch took effect. A wrong `id` is not an error. dsh writes
+`patch: entry "tool-sourcegraphx" not found` to stderr, exits with code 0, and
+keeps the default endpoint. Look at the composed row before you use the tool:
 
 ```sh
 dsh --profile web --dump-config | grep -A5 tool-sourcegraph
 # expect:  # == dsh-tool-sourcegraph, patched by …/cordis.patch.yml
 ```
 
-An unresolvable `tokenRef` does *not* fall back to anonymous access on a private
-instance — it answers `401` with the hint
+A `tokenRef` that does not resolve does not become an anonymous request on a
+private instance. The instance answers `401` and adds the hint
 `the instance rejected the credential; check that the configured token reference
 resolves`.
 
 ### Where the token lives
 
-`tokenRef` names a credential, resolved per request, so a rotated token reaches
-the next call without a restart. Resolution order, highest precedence first:
+`tokenRef` names a credential. The plugin reads the value for each request, so a
+new token is active on the next call. No restart is necessary. The order of
+resolution is:
 
-| Source | How |
+| Source | How to set it |
 |---|---|
-| inherited environment | export `SOURCEGRAPH_TOKEN=…` before launching dsh |
-| the credential store | `~/.dsh/.credentials.yaml` (mode 600): `version: 1`, then `refs:` mapping the name to the value |
-| `.env` in the invocation directory | a lower-precedence fallback |
+| inherited environment | export `SOURCEGRAPH_TOKEN=…` before you start dsh |
+| the credential store | `~/.dsh/.credentials.yaml` (mode 600): `version: 1`, then a `refs:` map from the name to the value |
+| `.env` in the invocation directory | a fallback with lower precedence |
 
-The store is the file the harness owns and is the option that needs nothing
-exported at launch:
+The store belongs to the harness. It is the option that needs nothing exported at
+start:
 
 ```yaml
 # ~/.dsh/.credentials.yaml
@@ -76,10 +78,10 @@ refs:
   SOURCEGRAPH_TOKEN: <token>
 ```
 
-`tokenRef` can be omitted entirely when you use the default name.
+You can omit `tokenRef` when you use the default name.
 
-**Alternative — enter the token in settings instead.** Set `apiToken` rather than
-`tokenRef`; it wins when both are present and needs no credential store:
+As an alternative, put the token in the settings instead of the credential store.
+Set `apiToken` in place of `tokenRef`. It wins when you set both:
 
 ```yaml
 - id: tool-sourcegraph
@@ -88,36 +90,36 @@ refs:
     apiToken: <token>   # stored in your settings document, not the credential store
 ```
 
-Unlike `tokenRef`, this deliberately puts the secret in configuration, which is
-why `tokenRef` is the default. Both are fields of the plugin's settings
-namespace, so either can also be written through the settings API —
+Unlike `tokenRef`, this option puts the secret in the configuration. That is why
+`tokenRef` is the default. Both fields belong to the plugin settings namespace,
+so you can also write them through the settings API:
 `ctx.remote.settings.update('tool-sourcegraph', patch, revision)`.
 
-> There is no form for these fields in the Settings screen yet. The plugin
-> registers its settings namespace on the Host, but the **Plugin configuration**
-> tab renders only cards a plugin ships a browser half for, and this one does not
-> — so it appears under **Plugin list** as Running/Enabled with nothing to edit.
-> See [docs/settings-ui.md](docs/settings-ui.md).
-
+There is no form for these fields in the Settings screen yet. The plugin
+registers its settings namespace on the Host. The tab named Plugin configuration
+shows only the cards that a plugin ships a browser half for, and this plugin has
+no browser half. The plugin therefore appears under Plugin list as Running and
+Enabled, with nothing to edit. Refer to
+[docs/settings-ui.md](docs/settings-ui.md).
 
 ## The tool
 
-`sourcegraph_search` passes its query through unchanged, so the whole query
-language works — `repo:`, `lang:`, `file:`, `type:`, `select:`, boolean
-operators, and every `patternType`:
+`sourcegraph_search` sends your query without a change, so the full query language
+is available: `repo:`, `lang:`, `file:`, `type:`, `select:`, boolean operators,
+and all pattern types.
 
 | Argument | Type | Notes |
 |---|---|---|
-| `query` | string, required | Full Sourcegraph query, passed through unchanged |
-| `patternType` | `keyword` \| `standard` \| `regexp` \| `structural` | Structural search is the same endpoint and result shape |
-| `count` | integer | Maximum matches returned |
+| `query` | string, required | Full Sourcegraph query, sent without a change |
+| `patternType` | `keyword` \| `standard` \| `regexp` \| `structural` | Structural search uses the same endpoint and the same result shape |
+| `count` | integer | The largest number of matches to return |
 | `contextLines` | integer | Lines of context around each match |
 
-Results come back grouped by repository and path with line numbers, and the tool
-reports **why** a result set was truncated: the server's own `progress.skipped`
-explanations, `alert` messages, and the narrowing filters it offered. The stream
-is read incrementally and stops as soon as the requested match count is
-satisfied, so a broad query stays bounded.
+The results are grouped by repository and path, with line numbers. The tool also
+tells you why a result set stopped early. It reports the `progress.skipped`
+entries from the server, the `alert` messages, and the filters that the server
+offered. The client reads the stream as it arrives and stops when it has the
+number of matches that you asked for, so a wide query stays bounded.
 
 ## Development
 
@@ -132,64 +134,64 @@ pnpm run check       # release + publint + pack dry-run
 
 | Path | Purpose |
 |---|---|
-| `src/index.ts` | Plugin entry: config, `sourcegraph_search`, credential resolution |
-| `src/client.ts` | Bounded Server-Sent-Events reader for `/.api/search/stream` |
-| `src/vendor/sourcegraph-query/` | Sourcegraph's own query scanner/parser, vendored — see its `PROVENANCE.md` |
-| `upstream/sourcegraph/` | Git submodule pinned to the commit the vendored files came from |
+| `src/index.ts` | Plugin entry: configuration, `sourcegraph_search`, credential resolution |
+| `src/client.ts` | Server-Sent-Events reader for `/.api/search/stream`, with a limit |
+| `src/vendor/sourcegraph-query/` | The query scanner and parser from Sourcegraph, vendored. Refer to its `PROVENANCE.md` |
+| `upstream/sourcegraph/` | Git submodule, pinned to the commit that the vendored files came from |
 | `dist/` | Build output, committed as the release artifact |
-| `tests/` | Vitest suite over the client |
+| `tests/` | Vitest suite for the client and the build artifacts |
 
-### Why `dist/` is committed
+### Why the repository contains `dist/`
 
-`dsh plugin add <git-url>` routes through pnpm, which refuses to run a package's
-`prepare` script until the user allow-lists it. Committing the build keeps the
-install free of both a build step and an approval prompt. Run `pnpm run release`
-before committing so the artifact matches the source.
+`dsh plugin add <git-url>` runs through pnpm. pnpm does not run the `prepare`
+script of a package until you add the package to `allowBuilds`. A committed build
+removes both the build step and the approval prompt. Run `pnpm run release` before
+you commit, so that the artifact matches the source.
 
-### The vendored tree — carried, not yet wired in
+### The vendored tree is present but not connected
 
-`src/vendor/sourcegraph-query/` holds Sourcegraph's own query scanner and parser.
-**Nothing in the runtime imports it yet.** The tool passes its query to the server
-unchanged; the copy exists so a malformed query can be rejected locally before
-costing a round trip, which is the pending follow-up, along with the
-`sourcegraph_fetch` and `sourcegraph_repo` tools. It is the bulk of the published
-package, so that is worth knowing before you redistribute it.
+`src/vendor/sourcegraph-query/` holds the query scanner and parser from
+Sourcegraph. No runtime code imports it yet. The tool sends the query to the
+server without a change. The copy is there so that a future version can reject a
+bad query locally, before a round trip. That work is pending, together with the
+`sourcegraph_fetch` and `sourcegraph_repo` tools. The directory is the largest
+part of the package, which is important to know before you redistribute it.
 
-`tsc` compiles it to `dist/vendor/...`, so it ships without a separate copy step.
-The standards stay separate: `tsconfig.json` holds every strict flag for this
-project's code and excludes `src/vendor`; `tsconfig.vendor.json` covers
-`src/vendor` with `strict` still on and only
-`noUncheckedIndexedAccess`/`exactOptionalPropertyTypes` relaxed — upstream's code
-produces 16 strictness complaints that are not defects, and rewriting third-party
-logic to satisfy our preferences would make the copy drift from upstream and
-harder to audit.
+`tsc` compiles the tree to `dist/vendor/...`, so it ships without a copy step. The
+compiler settings stay separate. `tsconfig.json` holds every strict flag for this
+project and excludes `src/vendor`. `tsconfig.vendor.json` covers `src/vendor` with
+`strict` on and only `noUncheckedIndexedAccess` and
+`exactOptionalPropertyTypes` relaxed, because the upstream code reports 16
+strictness problems that are not defects. A rewrite of third-party logic to
+satisfy our preferences moves the copy away from upstream and makes it harder to
+audit.
 
 ## Docs
 
 | Document | What it covers |
 |---|---|
-| [`docs/development.md`](docs/development.md) | Local dev loop, the three tsconfigs, the packaged-plugin resolution gotcha, verifying a mount |
-| [`docs/verification.md`](docs/verification.md) | Evidence log — what has been proven to work, and how each claim was checked |
+| [`docs/development.md`](docs/development.md) | The local development loop, the three tsconfig files, the resolution problem with an installed plugin, and how to make sure that a mount works |
+| [`docs/verification.md`](docs/verification.md) | The evidence log: what works, and how each claim was checked |
 | [`docs/settings-ui.md`](docs/settings-ui.md) | The settings namespace, precedence, the browser settings API, and why no form exists yet |
-| [`src/vendor/sourcegraph-query/PROVENANCE.md`](src/vendor/sourcegraph-query/PROVENANCE.md) | Vendored code: exact upstream commit, every modification, the license reading |
+| [`src/vendor/sourcegraph-query/PROVENANCE.md`](src/vendor/sourcegraph-query/PROVENANCE.md) | The vendored code: the upstream commit, each modification, and the license reading |
 | [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | Both upstream license texts, shipped with the package |
-| [`docs/kickoff.md`](docs/kickoff.md) | **Historical** — pre-implementation exploration. Superseded decisions are annotated, not rewritten |
+| [`docs/kickoff.md`](docs/kickoff.md) | Historical. The exploration before the implementation. Superseded decisions are marked, not removed |
 
-### Verifying a mount by hand
+### Make sure that a mount works
 
-`--dump-config` proves the row composes; it does not prove the tool executes.
-`docs/development.md` has a registry-level check that mounts the built plugin and
-dispatches a real call, plus the two gotchas: `ToolRuntime` requires a
-`systemPrompt` service, and `ctx.tools.execute` requires a caller `signal`.
+`--dump-config` shows that the row composes. It does not show that the tool runs.
+`docs/development.md` contains a registry-level test that mounts the built plugin
+and sends a real call. It also names the two problems that you can meet:
+`ToolRuntime` needs a `systemPrompt` service, and `ctx.tools.execute` needs a
+caller `signal`.
 
 ## Licensing
 
-MIT (see `LICENSE`). This package **also contains third-party code**:
-`src/vendor/sourcegraph-query/` is copied from Sourcegraph's client, which
-declares Apache-2.0 in its package manifest while that repository's root carries
-an enterprise license. The ambiguity, the exact upstream commit, and every
-modification are recorded in
-[`src/vendor/sourcegraph-query/PROVENANCE.md`](src/vendor/sourcegraph-query/PROVENANCE.md),
-and both upstream license texts ship in
-[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md). Read them before
-redistributing.
+The project uses the MIT license. Refer to `LICENSE`. The package also contains
+third-party code: `src/vendor/sourcegraph-query/` comes from the Sourcegraph
+client, which declares Apache-2.0 in its package manifest while the root of that
+repository carries an enterprise license. The record in
+[`src/vendor/sourcegraph-query/PROVENANCE.md`](src/vendor/sourcegraph-query/PROVENANCE.md)
+describes the ambiguity, the upstream commit, and each modification. Both upstream
+license texts ship in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md). Read them
+before you redistribute the package.

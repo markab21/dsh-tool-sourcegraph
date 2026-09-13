@@ -1,36 +1,36 @@
-# Settings and the UI
+# Settings and the user interface
 
-What this plugin's settings are, where they live, what is and is not editable from
-the Settings screen, and what it would take to add a form.
+This document describes the settings of the plugin, where the values are stored,
+which parts of the Settings screen are editable, and the work that a form needs.
 
 ## The settings namespace
 
-The plugin registers a Host settings namespace, `tool-sourcegraph`, through
-`ctx.settings.installSection()`. Fields:
+The plugin registers a Host settings namespace with the name `tool-sourcegraph`.
+It uses `ctx.settings.installSection()`. The namespace has six fields.
 
 | Field | Schema role | Meaning |
 |---|---|---|
-| `endpoint` | plain | Instance base URL, without `/.api` |
-| `apiToken` | `role('secret')` | Token entered directly. The settings provider strips it from every value handed to a browser and reports the field position as a secret instead; the stored document still holds it |
-| `tokenRef` | `role('credential-ref')` | Name of a credential resolved through the credential seam |
-| `maxMatches` | number | Upper bound on returned matches; also caps the tool's `count:` argument |
-| `maxCharsPerMatch` | number | Returned-character budget per match |
-| `search` | boolean | Whether to register the tool |
+| `endpoint` | plain | The base URL of the instance, without `/.api` |
+| `apiToken` | `role('secret')` | A token that you type in directly. The settings provider removes it from each value that it sends to a browser and reports the field position as a secret instead. The stored document keeps the value |
+| `tokenRef` | `role('credential-ref')` | The name of a credential that the plugin resolves through the credential seam |
+| `maxMatches` | number | The largest number of matches to return. It also limits the `count:` argument of the tool |
+| `maxCharsPerMatch` | number | The number of characters to return for each match |
+| `search` | boolean | Whether the plugin registers the tool |
 
-Precedence: a **stored** value beats the composition entry for the same field, and
-reads happen per request — a change takes effect on the next tool call, with no
-plugin reload. Within the token, `apiToken` beats `tokenRef`.
+A stored value beats the composition entry for the same field. The plugin reads
+the values for each request, so a change is active on the next tool call. No
+reload of the plugin is necessary. For the token, `apiToken` beats `tokenRef`.
 
-## Where values live
+## Where the values live
 
 | Layer | File | Notes |
 |---|---|---|
-| Composition entry | `~/.dsh/profiles/<profile>/cordis.patch.yml` | Part of the profile tree; `installSection`'s `base` layer |
-| Stored user values | `~/.dsh/settings.yaml`, under `tool-sourcegraph:` | The document the Settings screen and the settings API write |
+| Composition entry | `~/.dsh/profiles/<profile>/cordis.patch.yml` | Part of the profile tree. This is the `base` layer of `installSection` |
+| Stored user values | `~/.dsh/settings.yaml`, under `tool-sourcegraph:` | The document that the Settings screen and the settings API write |
 
-`~/.dsh/settings.yaml` is a plain YAML map keyed by namespace, next to sections
-like `llm-pi-ai` and `agent-default-model`. Writing the section directly is
-supported:
+`~/.dsh/settings.yaml` is a YAML map with a namespace for each key. Other
+sections in the same file are `llm-pi-ai` and `agent-default-model`. You can write
+the section directly:
 
 ```yaml
 tool-sourcegraph:
@@ -38,62 +38,61 @@ tool-sourcegraph:
   tokenRef: SOURCEGRAPH_TOKEN
 ```
 
-An absent field inherits the schema default, so a section may set only what it
-changes.
+A field that is absent uses the default from the schema, so a section can set only
+the values that it changes.
 
-## Editing without hand-editing YAML
+## Change the values without a text editor
 
-The browser can read and write any settings namespace over a Remote:
+A browser can read and write each settings namespace through a Remote:
 
 ```
 ctx.remote.settings.describe()                                  → every served namespace
 ctx.remote.settings.update(ns, patch, expectedRevision)         → write one
 ```
 
-`expectedRevision` refuses a stale write rather than overwriting a newer document,
-so a form must send back the revision it read.
+The `expectedRevision` argument refuses an old write. It does not overwrite a
+newer document. A form must send back the revision that it read.
 
-Credentials are exposed the same way, which is how the Models page manages API
-keys: `ctx.remote.credentials.describe(refs)`, `.set(ref, value)`, `.unset(ref)`.
+Credentials use the same method. The Models page manages API keys with
+`ctx.remote.credentials.describe(refs)`, `.set(ref, value)`, and `.unset(ref)`.
 
-The **Open configuration file** button in the Settings header opens the
-file-backed settings document — a text editor, not a form.
+The button named Open configuration file in the header of the Settings screen
+opens the file-backed settings document. It is a text editor, not a form.
 
-## Why there is no form for these fields yet
+## Why no form exists for these fields
 
-DSH's Settings screen has two tabs:
+The Settings screen of DSH has two tabs. Plugin configuration shows cards that you
+can edit. Plugin list shows an inventory of the composed plugins, without controls.
 
-- **Plugin configuration** — editable cards.
-- **Plugin list** — read-only inventory of the composed plugins.
+This plugin appears under Plugin list as `tool-sourcegraph`, Enabled and Running.
+It gives no card to Plugin configuration, so there is nothing to edit.
 
-This plugin appears on **Plugin list** as `tool-sourcegraph`, Enabled, Running.
-It produces **no card** on **Plugin configuration**, so there is nothing to edit.
+That is not a defect in the plugin. A plugin supplies its own cards. DSH does not
+make them from schemas. In `dsh-client-ui-settings-plugins`:
 
-That is not a bug in the plugin. Cards are contributed by plugins, not generated
-from schemas. In `dsh-client-ui-settings-plugins`:
+- Plugin configuration shows the cards that are registered in the
+  `settings.plugin.item` slot. The key of each card is the settings namespace that
+  the card edits.
+- A namespace that has no card is served but not shown.
+  `ConfigurablePluginsTabController` intersects the group of served namespaces with
+  the group of registered card keys and drops the rest.
+- The cards that DSH ships are hand-written components for four namespaces: `bash`,
+  `agent-loop`, `subagent-model-selection`, and `web-search-deepseek`.
 
-- `Plugin configuration` renders whatever cards are registered into the
-  `settings.plugin.item` slot, keyed by the settings namespace the card edits.
-- A served namespace with **no card is served but unrendered**
-  (`ConfigurablePluginsTabController` intersects the served namespace set with the
-  registered card keys and drops the rest).
-- The shipped cards are hand-written components for four specific namespaces:
-  `bash`, `agent-loop`, `subagent-model-selection`, `web-search-deepseek`.
+No shipped settings package contains a general form builder. Each of the four
+settings interfaces is written for its own namespace.
 
-There is no generic schema-driven form renderer anywhere in the shipped settings
-packages — each of the four settings UIs is bespoke.
+## A card is a supported extension point
 
-## Adding a card is a supported extension point
-
-The slot contract says so explicitly:
+The slot contract states this directly:
 
 > Keying on the namespace is what lets a plugin distributed outside this
 > repository contribute a card: it registers its own settings namespace on the
 > Host and its own card under that key in the browser, and the tab pairs the two
 > without ever learning what the namespace means.
 
-The mechanism (`dsh-client-modules`) is a lazy CommonJS factory table. A client
-bundle is a single script that does:
+The mechanism, `dsh-client-modules`, is a table of CommonJS factories that load
+on demand. A client bundle is one script:
 
 ```js
 window.__ModuleLoader__.load({
@@ -106,33 +105,34 @@ window.__ModuleLoader__.load({
 })
 ```
 
-Its `require` resolves against a boot manifest, so shared packages are available
-without bundling them — the shipped cards pull
+The `require` call resolves against a boot manifest, so shared packages are
+available without a bundle of your own. The cards that DSH ships load
 `@deepseek-ai/dsh-client-ui-slots`, `@deepseek-ai/dsh-client-ui-primitives`,
 `@deepseek-ai/dsh-client-store`, `react`, and `react/jsx-runtime`.
 
-To contribute one, the package needs:
+The package needs three items to add a card:
 
-1. a `dsh.client` manifest block — `{ "client": { "platform": "web", "inject": [...] } }`
-   (`dsh-client-ui-settings-plugins` declares
-   `["@deepseek-ai/dsh-client-locale", "@deepseek-ai/dsh-client-ui-settings", "@deepseek-ai/dsh-api-remotes"]`);
-2. a `./client` export pointing at the built bundle;
-3. a bundle in that factory format.
+1. A `dsh.client` block in the manifest:
+   `{ "client": { "platform": "web", "inject": [...] } }`. The package
+   `dsh-client-ui-settings-plugins` declares
+   `["@deepseek-ai/dsh-client-locale", "@deepseek-ai/dsh-client-ui-settings", "@deepseek-ai/dsh-api-remotes"]`.
+2. A `./client` export that points to the built bundle.
+3. A bundle in the factory format above.
 
-The cost is not the component — it is the **build target**. DSH's own client
-bundles are produced by `tsdown` (its source-map trailer is what
-`dsh-client-modules` looks for), and the format is a wrapped factory, not plain
-ESM. Hand-authoring one is possible for a small card, but it would be a
-maintained exception to a toolchain we do not otherwise depend on.
+The component is not the difficult part. The build target is. DSH makes its client
+bundles with `tsdown`, and `dsh-client-modules` looks for the source-map trailer of
+that tool. The format is a wrapped factory, not plain ESM. You can write a small
+card by hand, but then this repository must maintain a bundle format that it does
+not otherwise use.
 
-## Options, with their real cost
+## Options and their cost
 
 | Option | What the user gets | Cost |
 |---|---|---|
-| Leave it Host-only (today) | Values editable via `settings.yaml` and the settings API; no form | none |
-| Hand-authored client bundle | A real card with endpoint + secret fields | We own a bundle format we do not build with a toolchain; must re-verify on every DSH upgrade |
-| Add `tsdown` and build the client half | Same, built the way DSH builds its own | A new build step, a second build pipeline in this repo, and a client bundle in `dist/` |
-| Wait for a generic form in DSH | Nothing to build | Not available today; would remove the need entirely |
+| Keep the settings on the Host only (the current state) | Values that you can change in `settings.yaml` and through the settings API. No form | None |
+| Write the client bundle by hand | A card with fields for the endpoint and the secret | This repository must maintain a bundle format that it does not build with a toolchain. Each DSH upgrade needs a new test |
+| Add `tsdown` and build the browser half | The same card, built in the same way as the DSH cards | A new build step, a second build pipeline in this repository, and a client bundle in `dist/` |
+| Wait for a general form in DSH | Nothing to build | Not available today. It removes the need for the work |
 
-Nothing here blocks the model tool: the tool works with Host-only settings, and
-that is the state recorded in `verification.md`.
+None of these options blocks the model tool. The tool works with Host-only
+settings, and `verification.md` records that state.
