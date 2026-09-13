@@ -165,3 +165,50 @@ There is no silent failure mode worth trusting — check, in this order:
 | `Error: … plugin tree failed to load` with a stack inside the plugin | The module threw during import or `apply`; run the entry directly with `node -e import(...)` to see the raw error |
 | Dependency installed but not activated as a layer | Its manifest lacks `dsh.bundle.patch`, so it was installed as a plain dependency |
 | `pnpm not found on PATH` | `dsh plugin` forwards to pnpm; install it or use the overlay route |
+
+## Packaging gotcha: harness packages must resolve completely
+
+Mounting the plugin by absolute path makes Node resolve its `@deepseek-ai/*`
+imports from *this checkout's* `node_modules` — not the host's. That means every
+transitive dependency of `@deepseek-ai/dsh-tools` must also be installed here, or
+the load fails with a confusing error that points at the host package:
+
+```
+Cannot find package '@deepseek-ai/dsh-scope'
+  imported from .../dsh-sourcegraph/node_modules/@deepseek-ai/dsh-tools/lib/index.js
+```
+
+The failure is about *our* tree, even though the message names the host's. Check
+the chain directly:
+
+```sh
+for p in $(grep -ohE '^import [^;]*from "[^"]+"' \
+    node_modules/@deepseek-ai/dsh-tools/lib/index.js \
+  | grep -oE '"[^"]+"' | tr -d '"' | sort -u); do
+  [ -e "node_modules/$p" ] || echo "MISSING: $p"
+done
+```
+
+`@deepseek-ai/dsh-scope` is the one this project needed and did not have until
+the first real boot. The plugin's `peerDependencies` are declared, but a
+path-mounted plugin still has to be loadable end to end on its own.
+
+A published or profile-installed plugin resolves these from the profile's
+`node_modules` instead, which carries the whole harness. The dependency list
+above is what makes the *development* path work, so keep it in sync when the
+harness's own imports change.
+
+## Proving the plugin actually runs
+
+`--dump-config` only proves the row composes. To prove the tool executes, drive
+the real registry (`.scratch/integration-check.mjs` is a working example):
+
+1. build a `Context` and mount `ToolRuntime` — it also requires a
+   `systemPrompt` service, because it wires tool schemas into prompt assembly;
+2. `ctx.provide('credentials', …)` returning the reference the profile configures
+   — Cordis requires `provide` before the property is readable;
+3. `await ctx.plugin(pluginModule, config)` — the same call the loader makes;
+4. `ctx.tools.execute({ callId, signal, name, arguments })` — `signal` is
+   required, and omitting it fails inside the registry rather than in your code.
+
+A passing run prints the model-facing content the agent loop would receive.
