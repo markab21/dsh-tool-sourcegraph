@@ -262,19 +262,41 @@ and it fits `defineTool` far better than an adapted Observable would. The
 UI-only modules (`decoratedToken.ts`, `hover.ts`, `diagnostics.ts`,
 `patternMatcher.ts`, `analyze.ts`, `completion-utils.ts`) are not copied.
 
-### Three imports still need shims
+### The vendored tree is now wired up and building
 
-Nothing has been modified yet — the copies are verbatim, which is also why no
-per-file change notices are required yet. Before the tree typechecks in
-isolation: `SearchPatternType` (a generated enum) from two files, `Omit` from
-`utility-types` (use the TS builtin), and `SearchMatch['type']` from `stream.ts`
-(one property). `languageFilter.ts` also needs language data that upstream draws
-from `@sourcegraph/common`.
+The extraction is done, not pending. Every file compiles, and the split build
+keeps our code strict while the third-party tree uses upstream-compatible
+settings:
 
-**Worth reconsidering during implementation:** the two `completions/` modules and
-the `Completion` plumbing in `filters.ts` exist for UI autocompletion, which a
-model-facing tool never calls. Dropping them would also remove the language-data
-problem entirely.
+| Config | Covers | Strictness |
+|---|---|---|
+| `tsconfig.json` | `src/` except `src/vendor` | all strict flags |
+| `tsconfig.vendor.json` | `src/vendor/**` | three strict flags off |
+
+`pnpm run build` produces `dist/vendor/...` beside our own output, so the library
+ships with the plugin without a separate build step or `files` entry. Both
+configs exclude `upstream/` — without that, `tsc` emits `.js` into the pristine
+submodule checkout.
+
+Four local shims replace the imports that pointed outside the tree, and are our
+code under this repository's MIT license: `pattern-type.ts` (the
+`SearchPatternType` enum, transcribed from `schema.graphql` because upstream
+generates it at build time), `stream.ts` (only the `SearchMatch` discriminants —
+one property is used), `languages.ts` (hand-maintained completion lists instead
+of upstream's 796-line generated list plus lodash), and `window-context.d.ts`
+(the server-injected `window.context` global).
+
+**Verified end to end:** a real structural query round-trips —
+`parseSearchQuery` returns a `success` tree with 4 nodes, `scanSearchQuery`
+returns 23 tokens, `detectPatternType` correctly reports `structural`, and
+`stringHuman` prints the original query back unchanged. Full detail, including
+the single non-import edit and the per-file change notices, is in
+`src/vendor/sourcegraph-query/PROVENANCE.md`.
+
+**Deferred:** the two completion modules were kept (flattened into `query/`) with
+a language shim rather than dropped. If the completion tables turn out to be dead
+weight, removing them and the `Completion` plumbing in `filters.ts` is the
+follow-up.
 
 ### License
 
@@ -285,7 +307,7 @@ under any directory that contains a superseding license file" — and
 GitHub license metadata is `NOASSERTION`. Both readings are defensible; the
 project owner decided to proceed under the manifest's Apache-2.0 declaration
 with full attribution. That decision, and the requirement to revisit it before
-any public release, is recorded in `vendor/sourcegraph-query/PROVENANCE.md`
+any public release, is recorded in `src/vendor/sourcegraph-query/PROVENANCE.md`
 along with both upstream license texts.
 
 ## 10. Proposed tool contracts
@@ -398,10 +420,12 @@ the `next`/`alpha` tags or pin explicitly — never `latest`.
 | `README.md` | Project overview |
 | `docs/kickoff.md` | This document |
 | `docs/development.md` | The local dev loop against a live Harness |
-| `vendor/sourcegraph-query/` | Vendored Sourcegraph query modules + `PROVENANCE.md` |
-| `upstream/sourcegraph/` | Shallow submodule pinned to `c864f15` |
+| `src/vendor/sourcegraph-query/` | Vendored Sourcegraph query modules + `PROVENANCE.md` |
+| `upstream/sourcegraph/` | Shallow submodule pinned to `c864f15` (~56 MB, optional for building) |
+| `tsconfig.vendor.json` | Relaxed config for the vendored tree |
+| `THIRD-PARTY-NOTICES.md` | Upstream license texts, shipped with the package |
+| `pnpm-workspace.yaml`, `.npmrc` | Project-local workspace root and package store |
 | `LICENSE` | MIT (the vendored directory is separately licensed) |
 
-`src/` is intentionally absent: no plugin code has been written yet. The
-vendored tree is also untouched — its imports still point outside itself, and
-rewriting them is the first implementation task.
+The plugin itself (`src/index.ts`) is not written yet. Everything else is real:
+the vendored query modules compile, typecheck, and parse queries correctly.

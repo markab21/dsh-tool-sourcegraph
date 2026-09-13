@@ -36,25 +36,32 @@ dsh plugin --profile web add /path/to/this/checkout # local checkout
 | Path | Purpose |
 |---|---|
 | `src/` | Plugin source (not yet written) |
-| `vendor/sourcegraph-query/` | Sourcegraph's search-query scanner and parser, vendored — see its `PROVENANCE.md` |
+| `src/vendor/sourcegraph-query/` | Sourcegraph's search-query scanner and parser, vendored — see its `PROVENANCE.md` |
 | `upstream/sourcegraph/` | Git submodule pinned to the commit the vendored files were copied from |
+| `THIRD-PARTY-NOTICES.md` | Upstream license texts, shipped with the package |
 | `docs/` | Exploration notes and the development loop |
+
+The vendored tree sits under `src/` deliberately: `tsc` compiles it to
+`dist/vendor/sourcegraph-query/`, so it ships with the plugin without a separate
+build step or a `files` entry.
 
 ## Licensing note
 
 This project is MIT (see `LICENSE`). It **also contains third-party code**:
-`vendor/sourcegraph-query/` is copied from Sourcegraph's client, which declares
+`src/vendor/sourcegraph-query/` is copied from Sourcegraph's client, which declares
 Apache-2.0 in its package manifest while the repository root carries an
 enterprise license. That ambiguity, the exact upstream commit, and the
 modifications still required are all recorded in
-[`vendor/sourcegraph-query/PROVENANCE.md`](vendor/sourcegraph-query/PROVENANCE.md).
-Read it before redistributing this package.
+[`src/vendor/sourcegraph-query/PROVENANCE.md`](src/vendor/sourcegraph-query/PROVENANCE.md),
+and both upstream license texts are reproduced in
+[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md). Read them before
+redistributing this package.
 
 ## Development
 
 ```sh
 pnpm install
-pnpm run build      # tsc -> dist/
+pnpm run build      # tsc -b -> dist/ (strict src + relaxed src/vendor)
 pnpm run typecheck
 pnpm run test
 pnpm run check      # typecheck + test + build + publint + pack dry-run

@@ -15,5 +15,6 @@
     "verbatimModuleSyntax": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts"]
+  "exclude": ["src/vendor", "upstream", "node_modules", "dist"],
+  "references": [{ "path": "./tsconfig.vendor.json" }]
 }

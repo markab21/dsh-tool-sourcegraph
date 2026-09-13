@@ -1,0 +1,11 @@
+# Marks this project as its own pnpm workspace root.
+#
+# Without this file pnpm walks up the directory tree and finds a stray
+# `pnpm-workspace.yaml` in the user's home directory, then installs into the
+# home workspace instead of this project. Declaring the root here keeps
+# `node_modules` local and makes installs deterministic.
+packages:
+  - .
+
+nodeLinker: hoisted
+autoInstallPeers: false

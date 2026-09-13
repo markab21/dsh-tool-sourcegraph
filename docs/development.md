@@ -18,15 +18,64 @@ How to run this plugin against a live DeepSeek Harness without touching the
 ```sh
 cd /path/to/dsh-sourcegraph
 pnpm install          # harness packages land as devDependencies
-pnpm run build        # tsc -> dist/
+pnpm run build        # tsc -b -> dist/
 ```
 
-`pnpm install` may need network access for the `@deepseek-ai` packages. If the
-package manager cache is not writable, point it somewhere writable for the
-command rather than changing global config:
+The submodule is optional for building — the vendored files are committed — but
+is needed to diff them against upstream:
+
+```sh
+git submodule update --init --depth 1   # ~56 MB; without --depth 1 it is ~1.3 GB
+```
+
+### Why the project pins its own store and workspace
+
+`pnpm-workspace.yaml` marks this directory as its own workspace root and
+`.npmrc` keeps the content-addressable store inside the project
+(`.pnpm-store/`). Both exist because a `pnpm-workspace.yaml` in `$HOME` would
+otherwise make pnpm treat the home directory as the workspace root and try to
+manage `~/node_modules` instead of this project's.
+
+If an install is interrupted, pnpm can be left wanting to purge
+`node_modules` and, without a TTY, refusing:
+
+```sh
+CI=true pnpm install --ignore-scripts   # then re-run without CI
+```
+
+If the package manager cache itself is not writable, point it somewhere
+writable for the command rather than changing global config:
 
 ```sh
 npm_config_cache=$(mktemp -d) pnpm install
+```
+
+## The two TypeScript configurations
+
+The build is split, because third-party code and our code have different
+standards:
+
+| Config | Covers | Strictness |
+|---|---|---|
+| `tsconfig.json` | everything under `src/` **except** `src/vendor` | all strict flags on |
+| `tsconfig.vendor.json` | `src/vendor/**` only | `strictNullChecks`, `noUncheckedIndexedAccess`, and `exactOptionalPropertyTypes` off |
+
+`tsconfig.json` references the vendor project, so `tsc -b tsconfig.json` builds
+both, emitting `dist/vendor/...` and `dist/...` side by side. `pnpm run typecheck`
+checks each independently.
+
+The relaxed flags are documented in `tsconfig.vendor.json` and
+`src/vendor/sourcegraph-query/PROVENANCE.md`. In short: the vendored tree
+produces 16 errors under our strict flags, all of them strictness complaints in
+upstream's own logic. Rewriting third-party code to satisfy our preferences would
+make the copy drift from upstream and harder to audit.
+
+Both configs exclude `upstream/` deliberately. Without that, `tsc` walks into the
+submodule and emits `.js` next to its `.ts` sources, polluting a checkout that
+must stay pristine for provenance diffs. If that ever happens, clean it with:
+
+```sh
+git -C upstream/sourcegraph reset --hard && git -C upstream/sourcegraph clean -fd
 ```
 
 ## Option A — overlay patch (fastest, no install)

@@ -1,6 +1,16 @@
-import { FilterType } from './filters'
-import { scanSearchQuery } from './scanner'
-import type { Filter, Token } from './token'
+/*
+ * VENDORED — modified from the upstream file of the same name.
+ *
+ * Upstream: sourcegraph/sourcegraph-public-snapshot @ c864f15
+ *           client/shared/src/search/query/query.ts
+ * Changed:  import specifiers rewritten.
+ *
+ * Apache-2.0 section 4(b) notice. See ../PROVENANCE.md for the full list
+ * of modifications and the license terms this file is used under.
+ */
+import { FilterType } from './filters.js'
+import { scanSearchQuery } from './scanner.js'
+import type { Filter, Token } from './token.js'
 
 export enum FilterKind {
     Global = 'Global',

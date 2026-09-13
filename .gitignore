@@ -1,9 +1,14 @@
 # Build output
 dist/
 *.tsbuildinfo
+tsconfig.*.tsbuildinfo
 
 # Dependencies
 node_modules/
+
+# pnpm content-addressable store, kept in-project by .npmrc so installs stay
+# hermetic (the default store resolves through a stray workspace root in $HOME)
+.pnpm-store/
 
 # Test output
 coverage/

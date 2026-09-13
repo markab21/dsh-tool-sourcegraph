@@ -1,7 +1,17 @@
-import { SearchPatternType } from '../../graphql-operations'
+/*
+ * VENDORED — modified from the upstream file of the same name.
+ *
+ * Upstream: sourcegraph/sourcegraph-public-snapshot @ c864f15
+ *           client/shared/src/search/query/scanner.ts
+ * Changed:  import specifiers rewritten; the ScanResult narrowing in filterValue was bound to a local (see the inline comment).
+ *
+ * Apache-2.0 section 4(b) notice. See ../PROVENANCE.md for the full list
+ * of modifications and the license terms this file is used under.
+ */
+import { SearchPatternType } from './pattern-type.js'
 
-import { filterTypeKeysWithAliases } from './filters'
-import { scanPredicate } from './predicates'
+import { filterTypeKeysWithAliases } from './filters.js'
+import { scanPredicate } from './predicates.js'
 import {
     type Token,
     type Whitespace,
@@ -17,7 +27,7 @@ import {
     type CharacterRange,
     createLiteral,
     type Separator,
-} from './token'
+} from './token.js'
 
 /**
  * A scanner produces a term, which is either a token or a list of tokens.
@@ -419,13 +429,18 @@ const filter: Scanner<Filter> = (input, start) => {
     if (value && value.type === 'error') {
         return value
     }
+    // Vendored modification: bind the narrowed term before building the result.
+    // TypeScript does not carry the union narrowing above through the object
+    // literal below (`value` is reassigned inside the preceding else-branch),
+    // which this compiler flags and upstream's does not.
+    const term = value?.type === 'error' ? undefined : value?.term
     return {
         type: 'success',
         term: {
             type: 'filter',
-            range: { start, end: value ? value.term.range.end : separator.range.end },
+            range: { start, end: term ? term.range.end : separator.range.end },
             field,
-            value: value?.term,
+            value: term,
             negated: field.value.startsWith('-'),
         },
     }
