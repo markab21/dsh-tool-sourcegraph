@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Sourcegraph code search for DeepSeek Harness: search indexed code across repositories from the agent loop.",
   "license": "MIT",
-  "private": true,
+  "private": false,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -28,10 +28,10 @@
   "scripts": {
     "build": "tsc -b tsconfig.json",
     "clean": "tsc -b tsconfig.json --clean",
-    "prepare": "pnpm run build",
-    "typecheck": "tsc -p tsconfig.vendor.json --noEmit && tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.vendor.json --noEmit && tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "test": "vitest run",
-    "check": "pnpm run typecheck && pnpm run test && pnpm run build && publint && npm pack --dry-run"
+    "check": "pnpm run release && publint && npm pack --dry-run",
+    "release": "pnpm run typecheck && pnpm run test && pnpm run build"
   },
   "keywords": [
     "dsh-plugin",
@@ -62,7 +62,16 @@
     "@vitest/coverage-v8": "^5.0.0",
     "publint": "0.3.24",
     "typescript": "^7.0.2",
+    "vite": "^8.3.0",
     "vitest": "^5.0.0"
   },
-  "packageManager": "pnpm@11.20.0"
+  "packageManager": "pnpm@11.20.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/markab21/dsh-tool-sourcegraph.git"
+  },
+  "homepage": "https://github.com/markab21/dsh-tool-sourcegraph#readme",
+  "bugs": {
+    "url": "https://github.com/markab21/dsh-tool-sourcegraph/issues"
+  }
 }

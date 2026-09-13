@@ -1,5 +1,10 @@
-# Build output
-dist/
+# Build output.
+#
+# dist/ is COMMITTED on purpose: it is the release artifact. The package
+# declares no `prepare` script, because pnpm refuses to run one for a
+# git-hosted install until the user allow-lists it — committing the build keeps
+# `dsh plugin add <git-url>` working with no build step and no extra prompt.
+# TypeScript's incremental metadata stays out of the repository.
 *.tsbuildinfo
 tsconfig.*.tsbuildinfo
 

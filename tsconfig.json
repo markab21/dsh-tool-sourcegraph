@@ -13,8 +13,23 @@
     "rootDir": "src",
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "exclude": ["src/vendor", "upstream", "node_modules", "dist"],
-  "references": [{ "path": "./tsconfig.vendor.json" }]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/vendor",
+    "tests",
+    "upstream",
+    "node_modules",
+    "dist"
+  ],
+  "references": [
+    {
+      "path": "./tsconfig.vendor.json"
+    }
+  ]
 }

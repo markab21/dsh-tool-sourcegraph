@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.vendor.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "noEmit": true,
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"],
+  "exclude": ["upstream", "node_modules", "dist"],
+  "references": []
+}

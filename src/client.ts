@@ -178,6 +178,9 @@ export async function searchSourcegraph(request: SearchRequest): Promise<SearchO
   const decoder = new TextDecoder()
   let buffer = ''
 
+  /** Why the reader stopped, so the outcome can say whether it was cut short. */
+  const stop = { byLimit: false, byServer: false }
+
   const consume = (block: string): boolean => {
     const parsed = parseBlock(block)
     if (parsed === undefined) return false
@@ -191,14 +194,14 @@ export async function searchSourcegraph(request: SearchRequest): Promise<SearchO
       case 'matches': {
         if (Array.isArray(payload)) {
           for (const match of payload as RawMatch[]) {
-            if (outcome.matches.length >= limit && limit > 0) {
-              outcome.truncatedByClient = true
+            if (limit > 0 && outcome.matches.length >= limit) {
+              stop.byLimit = true
               continue
             }
             outcome.matches.push(match)
           }
         }
-        return false
+        return stop.byLimit
       }
       case 'filters': {
         if (Array.isArray(payload)) {
@@ -226,15 +229,20 @@ export async function searchSourcegraph(request: SearchRequest): Promise<SearchO
             if (!outcome.skipped.some((s) => s.reason === entry.reason)) outcome.skipped.push(entry)
           }
         }
-        // Stop reading once the server is done, or once enough matches have
-        // arrived to satisfy the caller's limit.
-        return progress.done === true || (limit > 0 && outcome.matches.length >= limit)
+        if (progress.done === true) {
+          stop.byServer = true
+          return true
+        }
+        // Progress events carry the running match count, but the display limit
+        // may already be satisfied; stopping here keeps a broad query bounded.
+        return limit > 0 && outcome.matches.length >= limit ? ((stop.byLimit = true), true) : false
       }
       case 'alert': {
         outcome.alerts.push(payload as RawAlert)
         return false
       }
       case 'done':
+        stop.byServer = true
         return true
       default:
         return false
@@ -252,7 +260,7 @@ export async function searchSourcegraph(request: SearchRequest): Promise<SearchO
         const block = buffer.slice(0, boundary)
         buffer = buffer.slice(boundary + 2)
         if (consume(block)) {
-          outcome.truncatedByClient = true
+          outcome.truncatedByClient = stop.byLimit
           await reader.cancel().catch(() => {})
           return outcome
         }
@@ -260,7 +268,7 @@ export async function searchSourcegraph(request: SearchRequest): Promise<SearchO
       }
     }
     if (buffer.trim() !== '') {
-      if (consume(buffer)) outcome.truncatedByClient = true
+      if (consume(buffer)) outcome.truncatedByClient = stop.byLimit
     }
   } finally {
     reader.releaseLock()
