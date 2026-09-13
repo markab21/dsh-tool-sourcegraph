@@ -1,0 +1,4 @@
+[submodule "upstream/sourcegraph"]
+	path = upstream/sourcegraph
+	url = https://github.com/sourcegraph/sourcegraph-public-snapshot.git
+	shallow = true

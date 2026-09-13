@@ -31,6 +31,25 @@ dsh plugin --profile web add dsh-tool-sourcegraph   # from the registry
 dsh plugin --profile web add /path/to/this/checkout # local checkout
 ```
 
+## Layout
+
+| Path | Purpose |
+|---|---|
+| `src/` | Plugin source (not yet written) |
+| `vendor/sourcegraph-query/` | Sourcegraph's search-query scanner and parser, vendored — see its `PROVENANCE.md` |
+| `upstream/sourcegraph/` | Git submodule pinned to the commit the vendored files were copied from |
+| `docs/` | Exploration notes and the development loop |
+
+## Licensing note
+
+This project is MIT (see `LICENSE`). It **also contains third-party code**:
+`vendor/sourcegraph-query/` is copied from Sourcegraph's client, which declares
+Apache-2.0 in its package manifest while the repository root carries an
+enterprise license. That ambiguity, the exact upstream commit, and the
+modifications still required are all recorded in
+[`vendor/sourcegraph-query/PROVENANCE.md`](vendor/sourcegraph-query/PROVENANCE.md).
+Read it before redistributing this package.
+
 ## Development
 
 ```sh
