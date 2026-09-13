@@ -1,6 +1,6 @@
 {
   "name": "dsh-tool-sourcegraph",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Sourcegraph code search for DeepSeek Harness: search indexed code across repositories from the agent loop.",
   "license": "MIT",
   "private": false,
@@ -48,6 +48,7 @@
     "@deepseek-ai/dsh-credentials": "^0.1.5-rc.1",
     "@deepseek-ai/dsh-llm": "^0.1.5-rc.1",
     "@deepseek-ai/dsh-scope": "^0.1.5-rc.1",
+    "@deepseek-ai/dsh-settings": "^0.1.5-rc.1",
     "@deepseek-ai/dsh-tools": "^0.1.5-rc.1",
     "@deepseek-ai/schemastery": "^3.18.2"
   },
@@ -56,6 +57,7 @@
     "@deepseek-ai/dsh-credentials": "0.1.5-rc.2",
     "@deepseek-ai/dsh-llm": "0.1.5-rc.2",
     "@deepseek-ai/dsh-scope": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-settings": "0.1.5-rc.2",
     "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
     "@deepseek-ai/schemastery": "3.18.2",
     "@types/node": "^26.5.1",

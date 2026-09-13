@@ -7,10 +7,14 @@
  * (`repo:`, `lang:`, `file:`, `type:`, boolean operators, `select:`) and every
  * `patternType`, including `structural`, are available.
  *
- * The access token is never a configuration value: configuration carries a
- * *reference* (an environment-variable name) that is resolved per request
- * through the harness credential seam. An unresolved reference means anonymous
- * access, which is what a public instance expects.
+ * Settings are owned by a registered settings namespace, so the harness
+ * configuration surface is the source of truth: a stored value overrides the
+ * composition entry, and every read happens per request. Both halves of the
+ * connection are editable there — `endpoint` is a plain field, and the secret is
+ * offered two ways: `apiToken` is a `role('secret')` field the settings surface
+ * redacts, and `tokenRef` names an environment variable resolved through the
+ * credential seam. `apiToken` wins when both are set, and neither being
+ * configured means anonymous access, which is what a public instance expects.
  *
  * @module dsh-tool-sourcegraph
  */
@@ -21,7 +25,9 @@ import { searchSourcegraph, SourcegraphError } from './client.js';
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'tool-sourcegraph';
 /** Services this plugin consumes. */
-export const inject = ['tools', 'credentials'];
+export const inject = ['tools', 'credentials', 'settings'];
+/** Settings namespace owning this plugin's configuration. */
+export const SETTINGS_NS = 'tool-sourcegraph';
 /** Default instance when configuration names none. */
 export const DEFAULT_ENDPOINT = 'https://sourcegraph.com';
 /** Default reference resolved for the access token. */
@@ -30,10 +36,14 @@ export const DEFAULT_TOKEN_REF = 'SOURCEGRAPH_TOKEN';
 export const DEFAULT_MAX_MATCHES = 30;
 /** Default cap on characters returned for one match's matched lines. */
 export const DEFAULT_MAX_CHARS_PER_MATCH = 600;
-/** Configuration schema, projected into the profile tree's `config:` block. */
+/**
+ * Configuration schema, used for both the composition entry and the settings
+ * namespace, so a stored value and a composed row validate identically.
+ */
 export const Config = z.object({
     endpoint: z.string().default(DEFAULT_ENDPOINT),
-    tokenRef: z.string().default(DEFAULT_TOKEN_REF),
+    apiToken: z.string().role('secret').default(''),
+    tokenRef: z.string().role('credential-ref').default(DEFAULT_TOKEN_REF),
     maxMatches: z.number().default(DEFAULT_MAX_MATCHES),
     maxCharsPerMatch: z.number().default(DEFAULT_MAX_CHARS_PER_MATCH),
     search: z.boolean().default(true),
@@ -156,12 +166,53 @@ function slimMatch(match, maxChars) {
     };
 }
 /**
+ * Resolve the access token for one request.
+ *
+ * `apiToken` wins over `tokenRef`: a token entered directly in a settings
+ * surface is the most specific statement of intent, and a deployment that also
+ * happens to export an environment variable should not shadow it. Otherwise the
+ * named reference is resolved through the credential seam, so a rotated
+ * credential reaches the next call without restarting the plugin. Neither set
+ * means anonymous access.
+ *
+ * @param ctx - the plugin context, for the credential seam.
+ * @param config - the configuration in force for this request.
+ * @returns the token to send, or undefined for anonymous access.
+ */
+async function resolveToken(ctx, config) {
+    const direct = config.apiToken.trim();
+    if (direct !== '')
+        return direct;
+    const ref = config.tokenRef.trim();
+    if (ref === '' || !isCredentialRefName(ref))
+        return undefined;
+    const resolved = await ctx.credentials.resolve(credentialRef(ref));
+    return resolved?.value;
+}
+/**
+ * Assert the configured bounds are usable.
+ *
+ * @param config - the configuration to validate.
+ * @throws Error when a bound is not a positive integer.
+ */
+function assertConfig(config) {
+    if (!Number.isInteger(config.maxMatches) || config.maxMatches < 1) {
+        throw new Error('tool-sourcegraph: maxMatches must be a positive integer');
+    }
+    if (!Number.isInteger(config.maxCharsPerMatch) || config.maxCharsPerMatch < 1) {
+        throw new Error('tool-sourcegraph: maxCharsPerMatch must be a positive integer');
+    }
+    if (config.endpoint.trim() === '') {
+        throw new Error('tool-sourcegraph: endpoint must not be empty');
+    }
+}
+/**
  * Register the Sourcegraph search tool.
  *
  * @param ctx - the plugin context; `ctx.tools` is available (declared in `inject`).
- * @param config - resolved plugin configuration.
+ * @param current - resolves the configuration in force for one request.
  */
-function applySearchTool(ctx, config) {
+function applySearchTool(ctx, current) {
     ctx.tools.register(defineTool({
         name: 'sourcegraph_search',
         description: 'Search code across many repositories indexed by Sourcegraph, including repositories that are not cloned locally. ' +
@@ -171,15 +222,11 @@ function applySearchTool(ctx, config) {
         output: SEARCH_OUTPUT,
         isConcurrencySafe: () => true,
         async execute(args, exec) {
+            // Read per request: a settings change takes effect on the next call
+            // without reloading the plugin.
+            const config = current();
             const limit = Math.min(args.count ?? config.maxMatches, config.maxMatches);
-            let token;
-            const ref = config.tokenRef.trim();
-            if (ref !== '' && isCredentialRefName(ref)) {
-                // Resolved per request: a rotated credential reaches the next call
-                // without restarting the plugin, and the value never enters config.
-                const resolved = await ctx.credentials.resolve(credentialRef(ref));
-                token = resolved?.value;
-            }
+            const token = await resolveToken(ctx, config);
             const outcome = await searchSourcegraph({
                 endpoint: config.endpoint,
                 query: args.query,
@@ -226,20 +273,33 @@ function applySearchTool(ctx, config) {
     }));
 }
 /**
- * Register the plugin's tools.
+ * Register the plugin's tools and settings namespace.
+ *
+ * The namespace is registered against the settings service when it is present,
+ * which makes the stored document the source of truth: a saved value overrides
+ * the composition entry, and `setSource` keeps the resolver pointed at the
+ * resolved configuration. Without the service the composition entry stands
+ * alone, so a deployment that does not compose settings still works.
  *
  * @param ctx - the plugin context.
- * @param config - resolved plugin configuration.
+ * @param config - the composition entry for this row.
  */
 export function apply(ctx, config) {
-    if (!Number.isInteger(config.maxMatches) || config.maxMatches < 1) {
-        throw new Error('tool-sourcegraph: maxMatches must be a positive integer');
-    }
-    if (!Number.isInteger(config.maxCharsPerMatch) || config.maxCharsPerMatch < 1) {
-        throw new Error('tool-sourcegraph: maxCharsPerMatch must be a positive integer');
-    }
+    assertConfig(config);
+    let current = () => config;
+    const settings = ctx.settings;
+    settings.installSection(ctx, SETTINGS_NS, Config, config, {
+        // Assignment only. `validate` is the hook for judging a resolved section,
+        // and `setSource` runs on attach and detach where throwing would turn a
+        // rejected value into a load failure.
+        setSource: (source) => {
+            current = source;
+        },
+        onChange: () => { },
+        validate: assertConfig,
+    });
     if (config.search)
-        applySearchTool(ctx, config);
+        applySearchTool(ctx, () => current());
 }
 export { SourcegraphError };
 //# sourceMappingURL=index.js.map
