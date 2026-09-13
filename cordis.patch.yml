@@ -1,0 +1,6 @@
+# Contributed when a DeepSeek Harness profile installs the dsh-tool-sourcegraph
+# bundle (`dsh plugin --profile <name> add <this package>`). The entry name is
+# the bare package name; the profile resolves it from its own node_modules.
+- insert:
+    - id: tool-sourcegraph
+      name: dsh-tool-sourcegraph

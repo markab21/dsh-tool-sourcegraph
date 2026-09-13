@@ -1,0 +1,64 @@
+{
+  "name": "dsh-tool-sourcegraph",
+  "version": "0.1.0",
+  "description": "Sourcegraph code search for DeepSeek Harness: search indexed code across repositories from the agent loop.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "pnpm run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "check": "pnpm run typecheck && pnpm run test && pnpm run build && publint && npm pack --dry-run"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "sourcegraph",
+    "code-search",
+    "code-intelligence"
+  ],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-credentials": "^0.1.5-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.1.5-rc.1",
+    "@deepseek-ai/dsh-web": "^0.1.5-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.2"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/dsh-credentials": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-web": "0.1.5-rc.2",
+    "@deepseek-ai/schemastery": "3.18.2",
+    "@types/node": "^26.5.1",
+    "@vitest/coverage-v8": "^5.0.0",
+    "publint": "0.3.24",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  },
+  "packageManager": "pnpm@11.20.0"
+}

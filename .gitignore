@@ -1,0 +1,25 @@
+# Build output
+dist/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+
+# Test output
+coverage/
+
+# Local scratch: disposable DSH profiles, home dirs, and dev overlay patches
+.scratch/
+*.local.yml
+.env
+.env.*
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Package manager
+npm-debug.log*
+pnpm-debug.log*
