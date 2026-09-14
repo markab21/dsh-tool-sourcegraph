@@ -147,7 +147,9 @@ describe('the transport deadline', () => {
   it('is installed when requestTimeoutMs is a positive value', async () => {
     delete (globalThis as Record<string, unknown>)['__DSH_TRANSPORT__']
     await mount({ requestTimeoutMs: 5_000 })
-    const transport = (globalThis as Record<string, { fetch?: unknown } | undefined>)['__DSH_TRANSPORT__']
+    const transport = (globalThis as unknown as Record<string, { fetch?: unknown } | undefined>)[
+      '__DSH_TRANSPORT__'
+    ]
     expect(transport?.fetch).toBeTypeOf('function')
     delete (globalThis as Record<string, unknown>)['__DSH_TRANSPORT__']
   })
