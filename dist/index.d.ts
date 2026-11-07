@@ -77,5 +77,25 @@ export interface Config {
  * namespace, so a stored value and a composed row validate identically.
  */
 export declare const Config: z<Config>;
+/**
+ * Resolve the access token for one request.
+ *
+ * `apiToken` wins over `tokenRef`: a token entered directly in a settings
+ * surface is the most specific statement of intent, and a deployment that also
+ * happens to export an environment variable should not shadow it. Otherwise the
+ * named reference is resolved through `lookup`: the credential seam when the
+ * composition has a credential store, otherwise the launch environment. Either
+ * way a rotated credential reaches the next call without restarting the
+ * plugin. Neither set means anonymous access.
+ *
+ * @param lookup - resolves a credential reference name to its value.
+ * @param config - the configuration in force for this request.
+ * @returns the token to send, or undefined for anonymous access.
+ */
+export declare function resolveToken(lookup: TokenLookup, config: Config): Promise<string | undefined>;
+/** Resolves a credential reference name to its value, or undefined. */
+export type TokenLookup = (ref: string) => Promise<string | undefined>;
+/** The launch environment, for compositions without a credential store (dsh-headless). */
+export declare const envLookup: TokenLookup;
 export declare function apply(ctx: Context, config: Config): void;
 export { SourcegraphError, FetchError };
