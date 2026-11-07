@@ -11,7 +11,6 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolRuntime } from '@deepseek-ai/dsh-tools'
-import { SettingsProvider } from '@deepseek-ai/dsh-settings'
 import * as plugin from '../src/index.js'
 
 const ROOT = new URL('..', import.meta.url).pathname
@@ -20,18 +19,6 @@ const SOURCE = readFileSync(join_(ROOT, 'src/index.ts'), 'utf8')
 /** Join path segments without importing `node:path` for one call. */
 function join_(...parts: string[]): string {
   return parts.join('/').replace(/\/+/g, '/')
-}
-
-/** A settings provider that serves an empty document. */
-class NullSettings extends SettingsProvider {
-  /** This provider accepts writes, as the local file provider does. */
-  get writable(): boolean {
-    return true
-  }
-  async load(): Promise<Record<string, unknown>> {
-    return {}
-  }
-  async persist(): Promise<void> {}
 }
 
 /** Build a context with the four services the plugin declares. */
@@ -56,7 +43,6 @@ function makeContext(): { ctx: Context; sections: { name: string; order: number;
   })
   new ToolRuntime(ctx)
   ctx.provide('credentials', { async resolve() { return undefined } })
-  new NullSettings(ctx)
   return { ctx, sections }
 }
 
