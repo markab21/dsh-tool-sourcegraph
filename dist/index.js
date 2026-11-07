@@ -28,7 +28,9 @@ import { fetchSourcegraphFile, FetchError } from './fetch.js';
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'tool-sourcegraph';
 /** Services this plugin consumes. */
-export const inject = ['tools', 'credentials', 'systemPrompt'];
+// `credentials` is not required: the dsh-headless bundle runs without a credential store ("one-shot jobs use
+// launch-time credentials"), and a required service would leave the plugin pending there forever.
+export const inject = ['tools', 'systemPrompt'];
 /** Default instance when configuration names none. */
 export const DEFAULT_ENDPOINT = 'https://sourcegraph.com';
 /** Default reference resolved for the access token. */
@@ -191,24 +193,26 @@ function slimMatch(match, maxChars) {
  * `apiToken` wins over `tokenRef`: a token entered directly in a settings
  * surface is the most specific statement of intent, and a deployment that also
  * happens to export an environment variable should not shadow it. Otherwise the
- * named reference is resolved through the credential seam, so a rotated
- * credential reaches the next call without restarting the plugin. Neither set
- * means anonymous access.
+ * named reference is resolved through `lookup`: the credential seam when the
+ * composition has a credential store, otherwise the launch environment. Either
+ * way a rotated credential reaches the next call without restarting the
+ * plugin. Neither set means anonymous access.
  *
- * @param ctx - the plugin context, for the credential seam.
+ * @param lookup - resolves a credential reference name to its value.
  * @param config - the configuration in force for this request.
  * @returns the token to send, or undefined for anonymous access.
  */
-async function resolveToken(ctx, config) {
+export async function resolveToken(lookup, config) {
     const direct = config.apiToken.trim();
     if (direct !== '')
         return direct;
     const ref = config.tokenRef.trim();
     if (ref === '' || !isCredentialRefName(ref))
         return undefined;
-    const resolved = await ctx.credentials.resolve(credentialRef(ref));
-    return resolved?.value;
+    return lookup(ref);
 }
+/** The launch environment, for compositions without a credential store (dsh-headless). */
+export const envLookup = async (ref) => process.env[ref]?.trim() || undefined;
 /**
  * Assert the configured bounds are usable.
  *
@@ -231,8 +235,9 @@ function assertConfig(config) {
  *
  * @param ctx - the plugin context; `ctx.tools` is available (declared in `inject`).
  * @param current - resolves the configuration in force for one request.
+ * @param lookup - the token lookup in force (credential store or environment).
  */
-function applySearchTool(ctx, current) {
+function applySearchTool(ctx, current, lookup) {
     // Guidance in the system prompt, placed ahead of the filesystem-search tools.
     // A tool description is a weak lever on its own: it competes with glob and
     // grep for the same task. This section states the order explicitly, and it
@@ -275,7 +280,7 @@ function applySearchTool(ctx, current) {
                         `Reason: ${verdict.reason}. ${verdict.advice}`);
                 }
             }
-            const token = await resolveToken(ctx, config);
+            const token = await resolveToken(lookup(), config);
             const outcome = await searchSourcegraph({
                 endpoint: config.endpoint,
                 query: args.query,
@@ -396,8 +401,9 @@ const FETCH_OUTPUT = {
  *
  * @param ctx - the plugin context.
  * @param current - resolves the configuration in force for one request.
+ * @param lookup - the token lookup in force (credential store or environment).
  */
-function applyFetchTool(ctx, current) {
+function applyFetchTool(ctx, current, lookup) {
     ctx.systemPrompt.section({
         name: 'tool:sourcegraph_fetch',
         order: ctx.systemPrompt.getSectionOrder('TOOL_GLOB') - 49,
@@ -419,7 +425,7 @@ function applyFetchTool(ctx, current) {
         isConcurrencySafe: () => true,
         async execute(args, exec) {
             const config = current();
-            const token = await resolveToken(ctx, config);
+            const token = await resolveToken(lookup(), config);
             const file = await fetchSourcegraphFile({
                 endpoint: config.endpoint,
                 repo: args.repo,
@@ -511,8 +517,9 @@ const REPO_OUTPUT = {
  *
  * @param ctx - the plugin context.
  * @param current - resolves the configuration in force for one request.
+ * @param lookup - the token lookup in force (credential store or environment).
  */
-function applyRepoTool(ctx, current) {
+function applyRepoTool(ctx, current, lookup) {
     // Guidance placed ahead of the filesystem tools, like the other two, so the
     // model reads the order before it reaches glob and grep.
     ctx.systemPrompt.section({
@@ -539,7 +546,7 @@ function applyRepoTool(ctx, current) {
         async execute(args, exec) {
             const config = current();
             const limit = Math.min(args.count ?? config.maxMatches, config.maxMatches);
-            const token = await resolveToken(ctx, config);
+            const token = await resolveToken(lookup(), config);
             const outcome = await searchSourcegraph({
                 endpoint: config.endpoint,
                 query: `${args.query} type:repo`,
@@ -578,6 +585,14 @@ function applyRepoTool(ctx, current) {
 export function apply(ctx, config) {
     assertConfig(config);
     const current = () => config;
+    // The credential store when one is composed (it layers the environment under stored values), else the environment.
+    let tokenLookup = envLookup;
+    ctx.inject(['credentials'], (ctx) => {
+        tokenLookup = async (ref) => (await ctx.credentials.resolve(credentialRef(ref)))?.value;
+        ctx.effect(() => () => {
+            tokenLookup = envLookup;
+        });
+    });
     // Fiber-scoped: the disposer restores the transport when the plugin unloads.
     ctx.effect(() => {
         const deadline = config.requestTimeoutMs;
@@ -586,11 +601,11 @@ export function apply(ctx, config) {
         return installRequestDeadline(deadline);
     });
     if (config.search)
-        applySearchTool(ctx, () => current());
+        applySearchTool(ctx, () => current(), () => tokenLookup);
     if (config.fetch)
-        applyFetchTool(ctx, () => current());
+        applyFetchTool(ctx, () => current(), () => tokenLookup);
     if (config.repo)
-        applyRepoTool(ctx, () => current());
+        applyRepoTool(ctx, () => current(), () => tokenLookup);
 }
 export { SourcegraphError, FetchError };
 //# sourceMappingURL=index.js.map

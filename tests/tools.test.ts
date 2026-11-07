@@ -33,7 +33,7 @@ interface Mounted {
  * @param overrides - configuration fields to change from the defaults.
  * @returns the registered tool names and prompt section names.
  */
-async function mount(overrides: Record<string, unknown> = {}): Promise<Mounted> {
+async function mount(overrides: Record<string, unknown> = {}, credentials = true): Promise<Mounted> {
   const ctx = new Context()
   const sections: { name: string; text: unknown }[] = []
   ctx.provide('systemPrompt', {
@@ -49,7 +49,7 @@ async function mount(overrides: Record<string, unknown> = {}): Promise<Mounted> 
     },
   })
   new ToolRuntime(ctx)
-  ctx.provide('credentials', { async resolve() { return undefined } })
+  if (credentials) ctx.provide('credentials', { async resolve() { return undefined } })
 
   await ctx.plugin(plugin, {
     endpoint: 'https://sg.example',
@@ -87,6 +87,11 @@ describe('tool selection', () => {
     const mounted = await mount({ [flag]: false })
     expect(mounted.tools).not.toContain(tool)
     expect(mounted.tools).toHaveLength(TOOLS.length - 1)
+  })
+
+  it('loads without a credential store (the dsh-headless composition)', async () => {
+    const mounted = await mount({}, false)
+    expect(mounted.tools).toEqual(TOOLS.map((entry) => entry.tool))
   })
 
   it('registers no tool when all three flags are false', async () => {
@@ -139,5 +144,26 @@ describe('the transport deadline', () => {
     ]
     expect(transport?.fetch).toBeTypeOf('function')
     delete (globalThis as Record<string, unknown>)['__DSH_TRANSPORT__']
+  })
+})
+
+describe('token resolution', () => {
+  const config = (apiToken: string, tokenRef: string) => ({ apiToken, tokenRef }) as plugin.Config
+
+  it('prefers apiToken, then the lookup, then anonymous', async () => {
+    const lookup = async (ref: string) => (ref === 'SG_TEST_REF' ? 'from-store' : undefined)
+    expect(await plugin.resolveToken(lookup, config(' direct ', 'SG_TEST_REF'))).toBe('direct')
+    expect(await plugin.resolveToken(lookup, config('', 'SG_TEST_REF'))).toBe('from-store')
+    expect(await plugin.resolveToken(lookup, config('', ''))).toBeUndefined()
+  })
+
+  it('falls back to the launch environment without a credential store', async () => {
+    process.env.SG_TEST_REF = 'from-env'
+    try {
+      expect(await plugin.resolveToken(plugin.envLookup, config('', 'SG_TEST_REF'))).toBe('from-env')
+      expect(await plugin.resolveToken(plugin.envLookup, config('', 'SG_TEST_UNSET'))).toBeUndefined()
+    } finally {
+      delete process.env.SG_TEST_REF
+    }
   })
 })
