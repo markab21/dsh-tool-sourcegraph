@@ -7,9 +7,9 @@
  * (`repo:`, `lang:`, `file:`, `type:`, boolean operators, `select:`) and every
  * `patternType`, including `structural`, are available.
  *
- * Settings are owned by a registered settings namespace, so the harness
- * configuration surface is the source of truth: a stored value overrides the
- * composition entry, and every read happens per request. Both halves of the
+ * Settings come from the profile entry's Config, which the harness settings
+ * surface edits through the schema (dsh 0.2+ builds the form from `Config`; a
+ * saved edit reloads the plugin with the new config). Both halves of the
  * connection are editable there — `endpoint` is a plain field, and the secret is
  * offered two ways: `apiToken` is a `role('secret')` field the settings surface
  * redacts, and `tokenRef` names an environment variable resolved through the
@@ -26,8 +26,6 @@ import { FetchError } from './fetch.js';
 export declare const name = "tool-sourcegraph";
 /** Services this plugin consumes. */
 export declare const inject: string[];
-/** Settings namespace owning this plugin's configuration. */
-export declare const SETTINGS_NS = "tool-sourcegraph";
 /** Default instance when configuration names none. */
 export declare const DEFAULT_ENDPOINT = "https://sourcegraph.com";
 /** Default reference resolved for the access token. */

@@ -7,9 +7,9 @@
  * (`repo:`, `lang:`, `file:`, `type:`, boolean operators, `select:`) and every
  * `patternType`, including `structural`, are available.
  *
- * Settings are owned by a registered settings namespace, so the harness
- * configuration surface is the source of truth: a stored value overrides the
- * composition entry, and every read happens per request. Both halves of the
+ * Settings come from the profile entry's Config, which the harness settings
+ * surface edits through the schema (dsh 0.2+ builds the form from `Config`; a
+ * saved edit reloads the plugin with the new config). Both halves of the
  * connection are editable there — `endpoint` is a plain field, and the secret is
  * offered two ways: `apiToken` is a `role('secret')` field the settings surface
  * redacts, and `tokenRef` names an environment variable resolved through the
@@ -28,9 +28,7 @@ import { fetchSourcegraphFile, FetchError } from './fetch.js';
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'tool-sourcegraph';
 /** Services this plugin consumes. */
-export const inject = ['tools', 'credentials', 'settings', 'systemPrompt'];
-/** Settings namespace owning this plugin's configuration. */
-export const SETTINGS_NS = 'tool-sourcegraph';
+export const inject = ['tools', 'credentials', 'systemPrompt'];
 /** Default instance when configuration names none. */
 export const DEFAULT_ENDPOINT = 'https://sourcegraph.com';
 /** Default reference resolved for the access token. */
@@ -325,13 +323,8 @@ function applySearchTool(ctx, current) {
     }));
 }
 /**
- * Register the plugin's tools and settings namespace.
- *
- * The namespace is registered against the settings service when it is present,
- * which makes the stored document the source of truth: a saved value overrides
- * the composition entry, and `setSource` keeps the resolver pointed at the
- * resolved configuration. Without the service the composition entry stands
- * alone, so a deployment that does not compose settings still works.
+ * Register the plugin's tools. The settings surface edits this entry's Config
+ * through the exported schema, and a saved edit reloads the plugin.
  *
  * @param ctx - the plugin context.
  * @param config - the composition entry for this row.
@@ -584,18 +577,7 @@ function applyRepoTool(ctx, current) {
 }
 export function apply(ctx, config) {
     assertConfig(config);
-    let current = () => config;
-    const settings = ctx.settings;
-    settings.installSection(ctx, SETTINGS_NS, Config, config, {
-        // Assignment only. `validate` is the hook for judging a resolved section,
-        // and `setSource` runs on attach and detach where throwing would turn a
-        // rejected value into a load failure.
-        setSource: (source) => {
-            current = source;
-        },
-        onChange: () => { },
-        validate: assertConfig,
-    });
+    const current = () => config;
     // Fiber-scoped: the disposer restores the transport when the plugin unloads.
     ctx.effect(() => {
         const deadline = config.requestTimeoutMs;

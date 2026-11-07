@@ -10,7 +10,6 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolRuntime } from '@deepseek-ai/dsh-tools'
-import { SettingsProvider } from '@deepseek-ai/dsh-settings'
 import * as plugin from '../src/index.js'
 
 /** The tools this plugin can register, with the config flag that controls each. */
@@ -19,17 +18,6 @@ const TOOLS = [
   { tool: 'sourcegraph_fetch', flag: 'fetch' },
   { tool: 'sourcegraph_repo', flag: 'repo' },
 ] as const
-
-/** A settings provider that serves an empty document. */
-class Settings extends SettingsProvider {
-  get writable(): boolean {
-    return true
-  }
-  async load(): Promise<Record<string, unknown>> {
-    return {}
-  }
-  async persist(): Promise<void> {}
-}
 
 /** What one mount produced. */
 interface Mounted {
@@ -61,7 +49,6 @@ async function mount(overrides: Record<string, unknown> = {}): Promise<Mounted> 
     },
   })
   new ToolRuntime(ctx)
-  new Settings(ctx)
   ctx.provide('credentials', { async resolve() { return undefined } })
 
   await ctx.plugin(plugin, {

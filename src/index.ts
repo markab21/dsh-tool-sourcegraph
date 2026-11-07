@@ -7,9 +7,9 @@
  * (`repo:`, `lang:`, `file:`, `type:`, boolean operators, `select:`) and every
  * `patternType`, including `structural`, are available.
  *
- * Settings are owned by a registered settings namespace, so the harness
- * configuration surface is the source of truth: a stored value overrides the
- * composition entry, and every read happens per request. Both halves of the
+ * Settings come from the profile entry's Config, which the harness settings
+ * surface edits through the schema (dsh 0.2+ builds the form from `Config`; a
+ * saved edit reloads the plugin with the new config). Both halves of the
  * connection are editable there — `endpoint` is a plain field, and the secret is
  * offered two ways: `apiToken` is a `role('secret')` field the settings surface
  * redacts, and `tokenRef` names an environment variable resolved through the
@@ -25,9 +25,6 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { InferArgs, InferValue } from '@deepseek-ai/dsh-tools'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { credentialRef, isCredentialRefName } from '@deepseek-ai/dsh-credentials'
-// Type-only, and load-bearing: importing the module is what applies its
-// `declare module '@deepseek-ai/cordis'` augmentation for `ctx.settings`.
-import type { SettingsProvider } from '@deepseek-ai/dsh-settings'
 // Type-only, and load-bearing: applies the `ctx.systemPrompt` augmentation.
 import type { SystemPrompt } from '@deepseek-ai/dsh-system-prompt'
 
@@ -40,10 +37,7 @@ import { fetchSourcegraphFile, FetchError } from './fetch.js'
 export const name = 'tool-sourcegraph'
 
 /** Services this plugin consumes. */
-export const inject = ['tools', 'credentials', 'settings', 'systemPrompt']
-
-/** Settings namespace owning this plugin's configuration. */
-export const SETTINGS_NS = 'tool-sourcegraph'
+export const inject = ['tools', 'credentials', 'systemPrompt']
 
 /** Default instance when configuration names none. */
 export const DEFAULT_ENDPOINT = 'https://sourcegraph.com'
@@ -423,13 +417,8 @@ function applySearchTool(ctx: Context, current: ConfigResolver): void {
 }
 
 /**
- * Register the plugin's tools and settings namespace.
- *
- * The namespace is registered against the settings service when it is present,
- * which makes the stored document the source of truth: a saved value overrides
- * the composition entry, and `setSource` keeps the resolver pointed at the
- * resolved configuration. Without the service the composition entry stands
- * alone, so a deployment that does not compose settings still works.
+ * Register the plugin's tools. The settings surface edits this entry's Config
+ * through the exported schema, and a saved edit reloads the plugin.
  *
  * @param ctx - the plugin context.
  * @param config - the composition entry for this row.
@@ -723,18 +712,7 @@ function applyRepoTool(ctx: Context, current: ConfigResolver): void {
 export function apply(ctx: Context, config: Config): void {
   assertConfig(config)
 
-  let current: ConfigResolver = () => config
-  const settings: SettingsProvider = ctx.settings
-  settings.installSection(ctx, SETTINGS_NS, Config, config, {
-    // Assignment only. `validate` is the hook for judging a resolved section,
-    // and `setSource` runs on attach and detach where throwing would turn a
-    // rejected value into a load failure.
-    setSource: (source: () => Config) => {
-      current = source
-    },
-    onChange: () => {},
-    validate: assertConfig,
-  })
+  const current: ConfigResolver = () => config
 
   // Fiber-scoped: the disposer restores the transport when the plugin unloads.
   ctx.effect(() => {
